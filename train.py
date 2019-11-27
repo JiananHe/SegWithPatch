@@ -26,7 +26,7 @@ leaing_rate = 1e-4
 batch_size = 1 if on_server else 1
 num_workers = 4 if on_server else 1
 pin_memory = True if on_server else False
-samples_every_vol = 20 if on_server else 10
+samples_every_vol = 24 if on_server else 10
 
 # 设置种子，使得结果可复现
 setup_seed(2018)
@@ -72,7 +72,6 @@ for epoch in range(Epoch):
         # forward + backward + optimize
         output = net(ct)
         loss = loss_func(output, seg)
-        # org_acc, acc = accuracy(output.cpu().detach().numpy(), seg.numpy())
 
         mean_loss.append(loss)
 
