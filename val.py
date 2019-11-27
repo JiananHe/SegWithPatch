@@ -12,9 +12,23 @@ organs_name = organs_properties['organs_name']
 sample_path = organs_properties['sample_path']
 num_organ = organs_properties['num_organ']
 
-model_dir = './module/vnet0-0.022-0.025.pth'
+model_dir = './module/vnet650-0.517-0.436.pth'
 
 sample_size = 64  # 64*64*64 for a patch
+new_spcacing = 2
+
+
+def patch_predict(net, patch):
+    with torch.no_grad():
+        patch_tensor = torch.FloatTensor(patch).cuda()
+        patch_tensor = patch_tensor.unsqueeze(dim=0)
+        patch_tensor = patch_tensor.unsqueeze(dim=0)  # (1, 1, 64, 64, 64)
+
+        output = net(patch_tensor)
+        output = output.squeeze().cpu().detach().numpy()  # (14, 64, 64, 64)
+        output = np.argmax(output, axis=0)  # (64, 64, 64)
+
+    return output
 
 
 def volume_predict(net, vol_array):
@@ -25,9 +39,9 @@ def volume_predict(net, vol_array):
     :return: prediction
     """
     net.eval()
-    # 切割
+    # 切割patch -> patch predict -> prediction填充
     s = vol_array.shape
-    patches = []
+    vol_predict = np.zeros(vol_array.shape)
     for z in range(0, s[0], sample_size):
         z_end = s[0] if z + sample_size > s[0] else z + sample_size
         z_start = z_end - sample_size
@@ -37,34 +51,11 @@ def volume_predict(net, vol_array):
             for y in range(0, s[2], sample_size):
                 y_end = s[2] if y + sample_size > s[2] else y + sample_size
                 y_start = y_end - sample_size
-                patches.append(vol_array[z_start:z_end, x_start:x_end, y_start:y_end])
 
-    # 预测
-    patch_predicts = []
-    with torch.no_grad():
-        for patch in patches:
-            patch_tensor = torch.FloatTensor(patch).cuda()
-            patch_tensor = patch_tensor.unsqueeze(dim=0)
-            patch_tensor = patch_tensor.unsqueeze(dim=0)  # (1, 1, 64, 64, 64)
+                patch = vol_array[z_start:z_end, x_start:x_end, y_start:y_end]
+                prediction = patch_predict(net, patch)
 
-            output = net(patch_tensor)
-            output = output.squeeze().cpu().detach().numpy()  # (14, 64, 64, 64)
-            output = np.argmax(output, axis=0)  # (64, 64, 64)
-
-            patch_predicts.append(output)
-
-    # 拼接
-    vol_predict = np.zeros(vol_array.shape)
-    patch_idx = 0
-    for z_start in range(0, s[0], sample_size):
-        z_end = s[0] if z_start + sample_size > s[0] else z_start + sample_size
-        for x_start in range(0, s[1], sample_size):
-            x_end = s[1] if x_start + sample_size > s[1] else x_start + sample_size
-            for y_start in range(0, s[2], sample_size):
-                y_end = s[2] if y_start + sample_size > s[2] else y_start + sample_size
-                vol_predict[z_start:z_end, x_start:x_end, y_start:y_end] = \
-                    patch_predicts[patch_idx][0:z_end-z_start, 0:x_end-x_start, 0:y_end-y_start]
-                patch_idx += 1
+                vol_predict[z_start:z_end, x_start:x_end, y_start:y_end] = prediction
 
     return vol_predict
 
@@ -91,38 +82,27 @@ def volume_accuarcy(vol_label, vol_predict):
     return dices
 
 
-def save_seg(pred_seg, info, accs):
-    prediction = np.argmax(pred_seg, axis=1).squeeze()  # (D, 256, 256)
+def save_seg(ct_name, ct_vol, prediction):
+    # 将ct_vol（经过预处理之后的sample，不是raw data）的prediction保存
+    pred_vol = sitk.GetImageFromArray(prediction)
 
-    img_name = info[0]
-    ct = sitk.ReadImage((os.path.join(image_path, img_name)))
+    pred_vol.SetDirection(ct_vol.GetDirection())
+    pred_vol.SetOrigin(ct_vol.GetOrigin())
+    pred_vol.SetSpacing(ct_vol.GetSpacing())
 
-    # 插值
-    ct_array = sitk.GetArrayFromImage(ct)
-    pred_unsample = ndimage.zoom(prediction, (ct_array.shape[0]/prediction.shape[0],
-                                              ct_array.shape[1]/prediction.shape[1],
-                                              ct_array.shape[2]/prediction.shape[2]), order=0)
-
-    # 保存
-    pred = sitk.GetImageFromArray(pred_unsample)
-
-    pred.SetDirection(ct.GetDirection())
-    pred.SetOrigin(ct.GetOrigin())
-    pred.SetSpacing(ct.GetSpacing())
-
-    sitk.WriteImage(pred, os.path.join('./prediction', img_name))
-    del pred
-    csv_writer.writerow([img_name]+accs)
+    sitk.WriteImage(pred_vol, os.path.join('./prediction', ct_name))
 
 
-def dataset_accuracy(net, csv_path, cal_acc = True, save=False, postprocess=False):
+def dataset_accuracy(net, csv_path, cal_acc=True, show_sample_dice=False, save=False, postprocess=False):
     reader = csv.reader(open(csv_path))
     sample_dices = []
     for line in reader:
         vol_path = line[0]
+        vol_name = vol_path.split("\\")[-1]
         vol = sitk.ReadImage(vol_path)
         vol_array = sitk.GetArrayFromImage(vol)
         vol_predict = volume_predict(net, vol_array)
+        assert vol_predict.shape == vol_array.shape
 
         if cal_acc:
             lbl_path = line[1]
@@ -130,9 +110,13 @@ def dataset_accuracy(net, csv_path, cal_acc = True, save=False, postprocess=Fals
             vol_label = sitk.GetArrayFromImage(vol_label)
             dices = volume_accuarcy(vol_label, vol_predict)
             sample_dices.append(dices)
+            if show_sample_dice:
+                os.system('echo %s' % vol_name)
+                s = " ".join(["%s:%s" % (i, j if j == 'None' else round(j, 3)) for i, j in zip(organs_name, dices)])
+                os.system('echo %s' % s)
 
         if save:
-            pass
+            save_seg(vol_name, vol, vol_predict)
 
     if cal_acc:
         sample_dices = np.array(sample_dices)
@@ -145,9 +129,6 @@ def dataset_accuracy(net, csv_path, cal_acc = True, save=False, postprocess=Fals
         return org_mean_dice
 
 
-
-
-
 if __name__ == "__main__":
     # models
     net = get_net(False)
@@ -155,4 +136,4 @@ if __name__ == "__main__":
     net.load_state_dict(torch.load(model_dir))
     net.eval()
 
-    val_org_mean_dice = dataset_accuracy(net, 'csv_files/btcv_val_info.csv')
+    val_org_mean_dice = dataset_accuracy(net, 'csv_files/btcv_val_info.csv',show_sample_dice=True, save=False)
