@@ -82,41 +82,63 @@ def volume_accuarcy(vol_label, vol_predict):
     return dices
 
 
-def save_seg(ct_name, ct_vol, prediction):
-    # 将ct_vol（经过预处理之后的sample，不是raw data）的prediction保存
-    pred_vol = sitk.GetImageFromArray(prediction)
+def resample_to_raw_spacing(prediction, raw_ct):
+    raw_ct_array = sitk.GetArrayFromImage(raw_ct)
+    raw_shape = raw_ct_array.shape
+    pred_shape = prediction.shape
+    resample_prediction = ndimage.zoom(prediction, (raw_shape[0] / pred_shape[0],
+                                                    raw_shape[1] / pred_shape[1],
+                                                    raw_shape[2] / pred_shape[2]), order=0)
+    return resample_prediction
 
-    pred_vol.SetDirection(ct_vol.GetDirection())
-    pred_vol.SetOrigin(ct_vol.GetOrigin())
-    pred_vol.SetSpacing(ct_vol.GetSpacing())
+
+def save_seg(ct_name, raw_ct, ct_predict):
+    # 将raw_ct的prediction保存
+    pred_vol = sitk.GetImageFromArray(ct_predict)
+
+    pred_vol.SetDirection(raw_ct.GetDirection())
+    pred_vol.SetOrigin(raw_ct.GetOrigin())
+    pred_vol.SetSpacing(raw_ct.GetSpacing())
 
     sitk.WriteImage(pred_vol, os.path.join('./prediction', ct_name))
 
 
-def dataset_prediction(net, csv_path, cal_acc=True, show_sample_dice=False, save=False, postprocess=False):
+def dataset_prediction(net, csv_path, raw_data_dir=None, cal_acc=True, show_sample_dice=False, save=False, postprocess=False):
     reader = csv.reader(open(csv_path))
     sample_dices = []
+    if raw_data_dir is not None:
+        raw_ct_path = os.path.join(raw_data_dir, 'img')
+        raw_lbl_path = os.path.join(raw_data_dir, 'label')
+
     for line in reader:
-        vol_path = line[0]
-        vol_name = vol_path.split("\\")[-1]
-        vol = sitk.ReadImage(vol_path)
-        vol_array = sitk.GetArrayFromImage(vol)
-        vol_predict = volume_predict(net, vol_array)
-        assert vol_predict.shape == vol_array.shape
+        ct_path = line[0]
+        ct_name = ct_path.split("\\")[-1]
+        ct = sitk.ReadImage(ct_path)
+        ct_array = sitk.GetArrayFromImage(ct)
+        ct_predict = volume_predict(net, ct_array)
+        assert ct_predict.shape == ct_array.shape
+
+        if raw_data_dir is not None:
+            # 将prediction从采用为原始分辨率
+            ct = sitk.ReadImage(os.path.join(raw_ct_path, ct_name))
+            ct_predict = resample_to_raw_spacing(ct_predict, ct)
 
         if cal_acc:
-            lbl_path = line[1]
+            if raw_data_dir is not None:
+                lbl_path = os.path.join(raw_lbl_path, ct_name.replace('img', 'label'))
+            else:
+                lbl_path = line[1]
             vol_label = sitk.ReadImage(lbl_path)
             vol_label = sitk.GetArrayFromImage(vol_label)
-            dices = volume_accuarcy(vol_label, vol_predict)
+            dices = volume_accuarcy(vol_label, ct_predict)
             sample_dices.append(dices)
             if show_sample_dice:
-                os.system('echo %s' % vol_name)
+                os.system('echo %s' % ct_name)
                 s = " ".join(["%s:%s" % (i, j if j == 'None' else round(j, 3)) for i, j in zip(organs_name, dices)])
                 os.system('echo %s' % s)
 
         if save:
-            save_seg(vol_name, vol, vol_predict)
+            save_seg(ct_name, ct, ct_predict)
 
     if cal_acc:
         sample_dices = np.array(sample_dices)
@@ -127,6 +149,7 @@ def dataset_prediction(net, csv_path, cal_acc=True, show_sample_dice=False, save
         os.system('echo %s' % s)
 
         return org_mean_dice
+    return None
 
 
 if __name__ == "__main__":
@@ -136,5 +159,12 @@ if __name__ == "__main__":
     net.load_state_dict(torch.load(model_dir))
     net.eval()
 
-    val_org_mean_dice = dataset_prediction(net, 'csv_files/btcv_val_info.csv',show_sample_dice=True, save=True)
+    # val_org_mean_dice = dataset_prediction(net, 'csv_files/btcv_val_info.csv', show_sample_dice=True, save=True)
+    val_org_mean_dice = dataset_prediction(net, 'csv_files/btcv_val_info.csv',
+                                           raw_data_dir=r'D:\Projects\OrgansSegment\BTCV\RawData\Training', show_sample_dice=True, save=True)
     print("mean dice: %.3f" % np.mean(val_org_mean_dice))
+
+    # test set
+    # dataset_prediction(net, 'csv_files/btcv_test_info.csv',
+    #                                        raw_data_dir=r'D:\Projects\OrgansSegment\BTCV\RawData\Testing', cal_acc=False, save=True)
+

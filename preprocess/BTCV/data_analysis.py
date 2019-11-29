@@ -34,11 +34,7 @@ for case in os.listdir(btcv_lbl_path):
     # assert vol.GetSpacing()[-1] == vol1.GetSpacing()[-1] and array.shape[1:] == array1.shape[1:]
     print(case_name, vol1.GetSpacing(), array1.shape, array1.dtype)
 
-    # 器官灰度值范围 (不准确，因为CT空洞)
-    # organs_gray = array1[array!=0]
-    # print('min gray: %.3f, max gray: %.3f' %(np.min(organs_gray), np.max(organs_gray)))
     print('-----------------------\n')
-# 横断面的spacing大都为3mm或5mm，分辨率为512*512, 一共47个
 
 print(orgs_count)
 # {1: 30, 2: 30, 3: 30, 4: 28, 5: 30, 6: 30, 7: 30, 8: 30, 9: 30, 10: 30, 11: 30, 12: 30, 13: 30}
