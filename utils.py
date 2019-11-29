@@ -9,7 +9,7 @@ organs_properties = {'organs_name': ['spleen', 'rkidny', 'lkidney', 'gallbladder
                                      'aorta', 'vena', 'vein', 'pancreas', 'rgland', 'lgland'],
                      'organs_size': {1: 41254, 2: 21974, 3: 21790, 4: 3814, 5: 2182, 6: 236843, 7: 61189, 8: 13355,
                                      9: 11960, 10: 4672, 11: 11266, 12: 595, 13: 724},
-                     'organs_weight': [1.0] * 13,
+                     'organs_weight': [1.0, 1.0, 2.0, 2.0, 2.0, 1.0, 3.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0],
                      'num_organ': 13,
                      'sample_path': r'D:\Projects\OrgansSegment\SegWithPatch\samples\Training'}
 # organs_properties = {'organs_index': [1, 3, 4, 5, 6, 7, 11, 14],

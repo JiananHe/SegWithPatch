@@ -12,7 +12,7 @@ organs_name = organs_properties['organs_name']
 sample_path = organs_properties['sample_path']
 num_organ = organs_properties['num_organ']
 
-model_dir = './module/vnet650-0.517-0.436.pth'
+model_dir = './module/vnet880-0.754-0.639.pth'
 
 sample_size = 64  # 64*64*64 for a patch
 new_spcacing = 2
@@ -93,7 +93,7 @@ def save_seg(ct_name, ct_vol, prediction):
     sitk.WriteImage(pred_vol, os.path.join('./prediction', ct_name))
 
 
-def dataset_accuracy(net, csv_path, cal_acc=True, show_sample_dice=False, save=False, postprocess=False):
+def dataset_prediction(net, csv_path, cal_acc=True, show_sample_dice=False, save=False, postprocess=False):
     reader = csv.reader(open(csv_path))
     sample_dices = []
     for line in reader:
@@ -136,4 +136,5 @@ if __name__ == "__main__":
     net.load_state_dict(torch.load(model_dir))
     net.eval()
 
-    val_org_mean_dice = dataset_accuracy(net, 'csv_files/btcv_val_info.csv',show_sample_dice=True, save=False)
+    val_org_mean_dice = dataset_prediction(net, 'csv_files/btcv_val_info.csv',show_sample_dice=True, save=True)
+    print("mean dice: %.3f" % np.mean(val_org_mean_dice))
