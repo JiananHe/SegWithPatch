@@ -35,6 +35,55 @@ def setup_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 
+def calc_weight_matrix(sample_size):
+    median = sample_size / 2 - 0.5
+
+    distance_matrix = np.zeros((sample_size, sample_size, sample_size), dtype=np.float)
+    for i in range(sample_size):
+        for j in range(sample_size):
+            for k in range(sample_size):
+                distance_matrix[i, j, k] = int(abs(i - median)) + \
+                                           int(abs(j - median)) + \
+                                           int(abs(k - median)) + 1
+
+    pair_sum = np.max(distance_matrix) + np.min(distance_matrix)  # sum of distance of every pair
+    total_sum = pair_sum * 4  # 4 pairs
+    weight_matrix = (pair_sum - distance_matrix) / total_sum
+    return weight_matrix
+
+
+def post_process(input):
+    """
+    分割结果的后处理：保留最大连通区域
+    :param input: whole volume （D, W, H）
+    :return: （D, W, H）
+    """
+    s = input.shape
+    output = np.zeros((num_organ+1, s[0], s[1], s[2]))
+    for id in range(1, num_organ+1):
+        org_seg = (input == id) + .0
+        if (org_seg == .0).all():
+            continue
+        labels, num = measure.label(org_seg, return_num=True)
+        regions = measure.regionprops(labels)
+        regions_area = [regions[i].area for i in range(num)]
+
+        # omit_region_id = []
+        # for rid, area in enumerate(regions_area):
+        #     if area < 0.1 * organs_size[organs_index[id - 1]]:  # 记录区域面积小于10%*器官尺寸的区域的id
+        #         omit_region_id.append(rid)
+        # for idx in omit_region_id:
+        #     org_seg[labels == (idx+1)] = 0
+
+        region_num = regions_area.index(max(regions_area)) + 1  # 记录面积最大的区域，不会计算background(0)
+        org_seg[labels == region_num] = 1
+        org_seg[labels != region_num] = 0
+
+        output[id, :, :, :] = org_seg
+
+    return np.argmax(output, axis=0)
+
+
 if __name__ == "__main__":
     a = torch.randint(1, 10, (6, 9, 48, 256, 256))
     b = torch.randint(1, 10, (6, 48, 256, 256))

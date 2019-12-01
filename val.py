@@ -3,7 +3,7 @@ import SimpleITK as sitk
 import torch
 import numpy as np
 import csv
-from utils import organs_properties
+from utils import organs_properties, calc_weight_matrix, post_process
 from models.vnet import get_net
 # from models.dense_vnet import get_net
 import scipy.ndimage as ndimage
@@ -26,7 +26,6 @@ def patch_predict(net, patch):
 
         output = net(patch_tensor)
         output = output.squeeze().cpu().detach().numpy()  # (14, 64, 64, 64)
-        output = np.argmax(output, axis=0)  # (64, 64, 64)
 
     return output
 
@@ -39,24 +38,36 @@ def volume_predict(net, vol_array):
     :return: prediction
     """
     net.eval()
-    # 切割patch -> patch predict -> prediction填充
     s = vol_array.shape
-    vol_predict = np.zeros(vol_array.shape)
-    for z in range(0, s[0], sample_size):
-        z_end = s[0] if z + sample_size > s[0] else z + sample_size
-        z_start = z_end - sample_size
-        for x in range(0, s[1], sample_size):
-            x_end = s[1] if x + sample_size > s[1] else x + sample_size
-            x_start = x_end - sample_size
-            for y in range(0, s[2], sample_size):
-                y_end = s[2] if y + sample_size > s[2] else y + sample_size
-                y_start = y_end - sample_size
 
-                patch = vol_array[z_start:z_end, x_start:x_end, y_start:y_end]
-                prediction = patch_predict(net, patch)
+    # padding，补 -1
+    pds = []
+    sample_stride = int(sample_size / 2)
+    for d in s:
+        pd = np.ceil(d/sample_stride)*sample_stride - d
+        pds.append(int(np.floor(pd / 2)))
+        pds.append(int(np.ceil(pd / 2)))
 
-                vol_predict[z_start:z_end, x_start:x_end, y_start:y_end] = prediction
+    vol_padding = np.ones((s[0] + sum(pds[:2]), s[1] + sum(pds[2:4]), s[2] + sum(pds[4:]))) * -1
+    vol_padding[pds[0]:pds[0]+s[0], pds[2]:pds[2]+s[1], pds[4]:pds[4]+s[2]] = vol_array
+    # 切割patch（重叠sample_size/2） -> patch predict -> prediction填充
+    weight_matrix = calc_weight_matrix(sample_size)  # （64, 64, 64)
+    ps = vol_padding.shape
+    vol_predict = np.zeros((num_organ+1, ps[0], ps[1], ps[2]))
+    for z_start in range(0, ps[0]-sample_size+1, sample_stride):
+        z_end = z_start + sample_size
+        for x_start in range(0, ps[1]-sample_size+1, sample_stride):
+            x_end = x_start + sample_size
+            for y_start in range(0, ps[2]-sample_size+1, sample_stride):
+                y_end = y_start + sample_size
 
+                patch = vol_padding[z_start:z_end, x_start:x_end, y_start:y_end]
+                prediction = patch_predict(net, patch)  # (14, 64, 64, 64)
+
+                vol_predict[:, z_start:z_end, x_start:x_end, y_start:y_end] += (prediction * weight_matrix)
+
+    vol_predict = np.argmax(vol_predict, axis=0)
+    vol_predict = vol_predict[pds[0]:pds[0]+s[0], pds[2]:pds[2]+s[1], pds[4]:pds[4]+s[2]]
     return vol_predict
 
 
@@ -123,6 +134,9 @@ def dataset_prediction(net, csv_path, raw_data_dir=None, cal_acc=True, show_samp
             ct = sitk.ReadImage(os.path.join(raw_ct_path, ct_name))
             ct_predict = resample_to_raw_spacing(ct_predict, ct)
 
+        if postprocess:
+            ct_predict = post_process(ct_predict)
+
         if cal_acc:
             if raw_data_dir is not None:
                 lbl_path = os.path.join(raw_lbl_path, ct_name.replace('img', 'label'))
@@ -160,11 +174,11 @@ if __name__ == "__main__":
     net.eval()
 
     # val_org_mean_dice = dataset_prediction(net, 'csv_files/btcv_val_info.csv', show_sample_dice=True, save=True)
-    val_org_mean_dice = dataset_prediction(net, 'csv_files/btcv_val_info.csv',
-                                           raw_data_dir=r'D:\Projects\OrgansSegment\BTCV\RawData\Training', show_sample_dice=True, save=True)
-    print("mean dice: %.3f" % np.mean(val_org_mean_dice))
+    # val_org_mean_dice = dataset_prediction(net, 'csv_files/btcv_val_info.csv',
+    #                                        raw_data_dir=r'D:\Projects\OrgansSegment\BTCV\RawData\Training', show_sample_dice=True, save=True, postprocess=True)
+    # print("mean dice: %.3f" % np.mean(val_org_mean_dice))
 
     # test set
-    # dataset_prediction(net, 'csv_files/btcv_test_info.csv',
-    #                                        raw_data_dir=r'D:\Projects\OrgansSegment\BTCV\RawData\Testing', cal_acc=False, save=True)
+    dataset_prediction(net, 'csv_files/btcv_test_info.csv',
+                       raw_data_dir=r'D:\Projects\OrgansSegment\BTCV\RawData\Testing', cal_acc=False, save=True, postprocess=True)
 
