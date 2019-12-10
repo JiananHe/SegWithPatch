@@ -59,20 +59,14 @@ from scipy.ndimage.filters import gaussian_filter
 # sitk.WriteImage(trans_vol, r'D:\test.nii.gz')
 
 
-sample_size = 8  # 64*64*64 for a patch
-median = sample_size/2 - 0.5
+seg_raw_vol = sitk.ReadImage(r"D:\Projects\OrgansSegment\SegWithPatch\samples\Training\img\img0001.nii.gz")
+# seg_raw_vol = sitk.ReadImage(r"C:\Users\Jianan\niftynet\data\dense_vnet_abdominal_ct\100_Label.nii")
 
-distance_matrix = np.zeros((sample_size, sample_size, sample_size), dtype=np.float)
-for i in range(sample_size):
-    for j in range(sample_size):
-        for k in range(sample_size):
-            distance_matrix[i, j, k] = int(abs(i-median)) + \
-                                       int(abs(j-median)) + \
-                                       int(abs(k-median)) + 1
+print(seg_raw_vol.GetOrigin())
 
-pair_sum = np.max(distance_matrix) + np.min(distance_matrix)  # sum of distance of every pair
-total_sum = pair_sum * 4  # 4 pairs
-print(distance_matrix)
-weight_matrix = (pair_sum - distance_matrix) / total_sum
-print(weight_matrix)
-print(np.min(weight_matrix) + np.max(weight_matrix))
+# seg_vol = sitk.GetImageFromArray(seg)
+#
+# seg_vol.SetDirection(seg_raw_vol.GetDirection())
+# seg_vol.SetSpacing(seg_raw_vol.GetSpacing())
+# seg_vol.SetOrigin(seg_raw_vol.GetOrigin())
+# sitk.WriteImage(seg_raw_vol, 'D:/test.nii.gz')
