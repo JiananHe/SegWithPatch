@@ -1,7 +1,3 @@
-# 预处理：
-# 1. 阈值截取(-350 ~ 350)
-# 2. 重采样至横截面spacing为3mm，分辨率256*256
-# 3. 裁剪至目标器官区域(向上下扩张(sample_slices/3))
 import SimpleITK as sitk
 import os
 import numpy as np
