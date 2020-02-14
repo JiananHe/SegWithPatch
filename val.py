@@ -173,12 +173,13 @@ if __name__ == "__main__":
     net.load_state_dict(torch.load(model_dir))
     net.eval()
 
-    # val_org_mean_dice = dataset_prediction(net, 'csv_files/btcv_val_info.csv', show_sample_dice=True, save=True)
+    # val set
+    val_org_mean_dice = dataset_prediction(net, 'csv_files/btcv_val_info.csv', show_sample_dice=True, save=True, postprocess=True)
     # val_org_mean_dice = dataset_prediction(net, 'csv_files/btcv_val_info.csv',
     #                                        raw_data_dir=r'D:\Projects\OrgansSegment\BTCV\RawData\Training', show_sample_dice=True, save=True, postprocess=True)
-    # print("mean dice: %.3f" % np.mean(val_org_mean_dice))
+    print("mean dice: %.3f" % np.mean(val_org_mean_dice))
 
     # test set
-    dataset_prediction(net, 'csv_files/btcv_test_info.csv',
-                       raw_data_dir=r'D:\Projects\OrgansSegment\BTCV\RawData\Testing', cal_acc=False, save=True, postprocess=True)
+    # dataset_prediction(net, 'csv_files/btcv_test_info.csv',
+    #                    raw_data_dir=r'D:\Projects\OrgansSegment\BTCV\RawData\Testing', cal_acc=False, save=True, postprocess=True)
 

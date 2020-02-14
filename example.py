@@ -1,5 +1,7 @@
 import SimpleITK as sitk
 import numpy as np
+import scipy.ndimage as ndimage
+from skimage import measure
 from scipy.ndimage.interpolation import map_coordinates
 from scipy.ndimage.filters import gaussian_filter
 
@@ -59,14 +61,42 @@ from scipy.ndimage.filters import gaussian_filter
 # sitk.WriteImage(trans_vol, r'D:\test.nii.gz')
 
 
-seg_raw_vol = sitk.ReadImage(r"D:\Projects\OrgansSegment\SegWithPatch\samples\Training\img\img0001.nii.gz")
-# seg_raw_vol = sitk.ReadImage(r"C:\Users\Jianan\niftynet\data\dense_vnet_abdominal_ct\100_Label.nii")
+# 最大连通区域
+ct_upper = 275.0
+ct_lower = -125.0
+new_spacing = [0.758, 0.758, 3.0]
+seg_raw_vol = sitk.ReadImage(r"D:\Projects\OrgansSegment\BTCV\RawData\Training\img\img0002.nii.gz")
+img_array = sitk.GetArrayFromImage(seg_raw_vol)
+raw_shape = img_array.shape
 
-print(seg_raw_vol.GetOrigin())
+# 阈值截取
+img_array = np.clip(img_array, ct_lower, ct_upper).astype(np.float32)
 
-# seg_vol = sitk.GetImageFromArray(seg)
+region_array = np.zeros(img_array.shape)
+region_array[img_array>ct_lower] = 1
+
+labels, num = measure.label(region_array, return_num=True)
+regions = measure.regionprops(labels)
+regions_area = [regions[i].area for i in range(num)]
+region_num = regions_area.index(max(regions_area))
+bbox = regions[region_num].bbox
+img_array = img_array[bbox[0]:bbox[3]+1, bbox[1]:bbox[4]+1, bbox[2]:bbox[5]+1]
+
+# 重采样, lbl应使用最近邻插值
+img_spacing = seg_raw_vol.GetSpacing()
+img_array = ndimage.zoom(img_array, (img_spacing[2] / new_spacing[2],
+                                     img_spacing[0] / new_spacing[0],
+                                     img_spacing[1] / new_spacing[1]), order=3)
+
 #
-# seg_vol.SetDirection(seg_raw_vol.GetDirection())
-# seg_vol.SetSpacing(seg_raw_vol.GetSpacing())
-# seg_vol.SetOrigin(seg_raw_vol.GetOrigin())
-# sitk.WriteImage(seg_raw_vol, 'D:/test.nii.gz')
+# bbox_array = np.zeros(region_array.shape)
+# bbox_array[bbox[0]:bbox[2]+1, bbox[1]:bbox[3]+1] = 1
+# cv2.imshow("bbox", bbox_array)
+# cv2.waitKey(0)
+
+new_img_vol = sitk.GetImageFromArray(img_array)
+new_img_vol.SetDirection(seg_raw_vol.GetDirection())
+new_img_vol.SetOrigin(seg_raw_vol.GetOrigin())
+new_img_vol.SetSpacing(seg_raw_vol.GetSpacing())
+
+sitk.WriteImage(new_img_vol, r"D:\\test.nii.gz")

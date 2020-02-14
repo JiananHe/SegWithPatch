@@ -13,7 +13,7 @@ from scipy.ndimage.interpolation import map_coordinates
 from scipy.ndimage.filters import gaussian_filter
 from utils import setup_seed, organs_properties
 
-sample_size = 64  # 64*64*64 for a sample
+sample_size = 128  # 64*64*64 for a sample
 num_organ = organs_properties['num_organ']
 organs_name = organs_properties['organs_name']
 
