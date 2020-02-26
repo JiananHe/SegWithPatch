@@ -2,7 +2,8 @@ import os
 from time import time
 import numpy as np
 import torch
-from models.vnet import get_net
+# from models.vnet import get_net
+from models.td_unet import get_net
 # from data_loader.btcv_data_loader import MyDataset
 from data_loader.btcv_blc_data_loader import MyDataset
 from torch.utils.data import DataLoader
@@ -18,24 +19,27 @@ organs_name = organs_properties['organs_name']
 organs_weight = organs_properties['organs_weight']
 
 on_server = True
-resume_training = False
-module_dir = './module/casvnet800-0.552-0.610.pth'
+resume_training = True
+module_dir = './module/td_unet80-0.668-0.601.pth'
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '0' if on_server is False else '5,6,7'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0' if on_server is False else '1,2,3'
 torch.backends.cudnn.benchmark = True
 Epoch = 2000
 leaing_rate = 1e-4
 
 batch_size = 1 if on_server else 1
-num_workers = 4 if on_server else 1
+num_workers = 2 if on_server else 1
 pin_memory = True if on_server else False
-samples_every_vol = 24 if on_server else 10
+
+# 梯度累计三次，即每三次batch更新一次网络参数
+samples_every_vol = 8
+grad_accum_steps = 3
 
 # 设置种子，使得结果可复现
 setup_seed(2018)
 
 # 模型
-net_name = 'vnet'
+net_name = 'td_unet'
 net = get_net(True)
 net = torch.nn.DataParallel(net).cuda() if on_server else net.cuda()
 if resume_training:
@@ -58,32 +62,37 @@ writer = SummaryWriter()
 for epoch in range(1, Epoch+1):
     mean_loss = []
     epoch_start = time()
-    # 数据
-    train_ds = MyDataset('csv_files/btcv_train_info.csv', samples_every_vol, organs_weight=organs_weight)
+
+    # switch models to training mode, clear gradient accumulators
+    net.train()
+    opt.zero_grad()
+
+    # 数据 (注意：虽然batch_size为1，但是实际包含samples_every_vol个patch)，每个epoch重新计算sampling count
+    train_ds = MyDataset('csv_files/btcv_train_info.csv', organs_weight, samples_every_vol, grad_accum_steps)
     train_dl = DataLoader(train_ds, batch_size, True, num_workers=num_workers, pin_memory=pin_memory)
 
-    for step, (ct, seg) in enumerate(train_dl):
-        ct = ct.squeeze(0)
-        seg = seg.squeeze(0)
+    for step, (ct, seg) in enumerate(train_dl): # 24 steps in BTCV
+        ct = ct.squeeze(0).cuda()
+        seg = seg.squeeze(0).cuda()
 
-        ct = ct.cuda()
-        seg = seg.cuda()
-        # switch models to training mode, clear gradient accumulators
-        net.train()
-        opt.zero_grad()
-
-        # forward + backward + optimize
+        # forward + backward + (after grad_accum_steps)optimize and clear grad
         output = net(ct)
         loss = loss_func(output, seg)
-
         mean_loss.append(loss)
 
+        # loss regularization
+        loss = loss / grad_accum_steps
+        # back propagation (calculate grad)
         loss.backward()
-        opt.step()
 
-        if step % 2 == 0:
-            s = 'epoch:{}, step:{}, loss:{:.3f}'.format(epoch, step, loss.item())
-            os.system('echo %s' % s)
+        # update parameters of net
+        if ((step + 1) % grad_accum_steps) == 0:
+            # optimizer the net
+            opt.step()  # update parameters of net
+            opt.zero_grad()  # reset gradient
+
+        s = 'epoch:{}, step:{}, loss:{:.3f}'.format(epoch, step, loss.item())
+        os.system('echo %s' % s)
 
     mean_loss = sum(mean_loss) / len(mean_loss)
 
@@ -126,11 +135,12 @@ for epoch in range(1, Epoch+1):
         s = "mean dice: %.3f, eval time: %.3f min" % (train_mean_dice, (time() - train_eval_start) / 60)
         os.system('echo %s' % s)
         writer.add_scalar("trainset mean dice", train_mean_dice, epoch)
-
-        # 每十个个epoch保存一次模型参数
-        # 网络模型的命名方式为：epoch轮数+train acc+val acc
         torch.save(net.state_dict(), "./module/%s%d-%.3f-%.3f.pth"
                    % (net_name, epoch, np.mean(train_org_mean_dice), np.mean(val_org_mean_dice)))
         os.system('echo %s' % "-----------------------------------------\n")
+
+    # 每十个个epoch保存一次模型参数
+    if epoch % 10 is 0:
+        torch.save(net.state_dict(), "./module/%s%d-%.3f.pth" % (net_name, epoch, mean_loss))
 
 writer.close()

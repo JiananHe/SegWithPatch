@@ -4,7 +4,7 @@ import torch
 import numpy as np
 import csv
 from utils import organs_properties, calc_weight_matrix, post_process
-from models.vnet import get_net
+from models.td_unet import get_net
 # from models.dense_vnet import get_net
 import scipy.ndimage as ndimage
 
@@ -12,7 +12,7 @@ organs_name = organs_properties['organs_name']
 sample_path = organs_properties['sample_path']
 num_organ = organs_properties['num_organ']
 
-model_dir = './module/vnet880-0.754-0.639.pth'
+model_dir = './module/td_unet400-0.842-0.740.pth'
 
 sample_size = 64  # 64*64*64 for a patch
 new_spcacing = 2
@@ -65,6 +65,7 @@ def volume_predict(net, vol_array):
                 prediction = patch_predict(net, patch)  # (14, 64, 64, 64)
 
                 vol_predict[:, z_start:z_end, x_start:x_end, y_start:y_end] += (prediction * weight_matrix)
+                del prediction
 
     vol_predict = np.argmax(vol_predict, axis=0)
     vol_predict = vol_predict[pds[0]:pds[0]+s[0], pds[2]:pds[2]+s[1], pds[4]:pds[4]+s[2]]
@@ -173,7 +174,7 @@ if __name__ == "__main__":
     net.load_state_dict(torch.load(model_dir))
     net.eval()
 
-    # val_org_mean_dice = dataset_prediction(net, 'csv_files/btcv_val_info.csv', show_sample_dice=True, save=True)
+    # val_org_mean_dice = dataset_prediction(net, 'csv_files/btcv_val_info.csv', show_sample_dice=True, save=True, postprocess=True)
     # val_org_mean_dice = dataset_prediction(net, 'csv_files/btcv_val_info.csv',
     #                                        raw_data_dir=r'D:\Projects\OrgansSegment\BTCV\RawData\Training', show_sample_dice=True, save=True, postprocess=True)
     # print("mean dice: %.3f" % np.mean(val_org_mean_dice))

@@ -144,4 +144,4 @@ if __name__ == '__main__':
     # Log out
     SYN.logout()
 
-# python submit_evaluation.py -d prediction\test.zip --username JiananHe --password 151417dndx -t seu -c 3381219 -n submission3_tsv
+# python submit_evaluation.py -d prediction\test.zip --username JiananHe --password 151417dndx -t seu -c 3381219 -n 3dunet-dys

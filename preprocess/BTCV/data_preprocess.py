@@ -63,9 +63,10 @@ def preprocess(img_name, img_vol, lbl_vol=None):
 
     # 记录info
     if lbl_vol is not None:
-        info.append([new_img_name, new_lbl_name, img_array.shape[0], img_array.shape[1], img_array.shape[2]])
+        info.append([os.path.abspath(new_img_name), os.path.abspath(new_lbl_name),
+                     img_array.shape[0], img_array.shape[1], img_array.shape[2]])
     else:
-        info.append([new_img_name, img_array.shape[0], img_array.shape[1], img_array.shape[2]])
+        info.append([os.path.abspath(new_img_name), img_array.shape[0], img_array.shape[1], img_array.shape[2]])
 
     print('case:', img_name)
     print('raw space:', img_vol.GetSpacing(), 'new shape:', new_img_vol.GetSpacing())
@@ -75,12 +76,12 @@ def preprocess(img_name, img_vol, lbl_vol=None):
 
 if __name__ == "__main__":
     # raw training data path
-    raw_path = r'D:\Projects\OrgansSegment\BTCV\RawData\Training'
+    raw_path = '/home/hja/Projects/OrgansSegment/Data/BTCV/RawData/Training'
     raw_img_path = os.path.join(raw_path, 'img')
     raw_lbl_path = os.path.join(raw_path, 'label')
 
     # training sample save path
-    sample_path = r'D:\Projects\OrgansSegment\SegWithPatch\samples\Training'
+    sample_path = '../../samples/BTCV/Training'
     sample_img_path = os.path.join(sample_path, 'img')
     sample_lbl_path = os.path.join(sample_path, 'label')
     if os.path.exists(sample_path) is True:
@@ -114,11 +115,11 @@ if __name__ == "__main__":
 
     ################################### label #####################################
     # raw testing data path
-    raw_path = r'D:\Projects\OrgansSegment\BTCV\RawData\Testing'
+    raw_path = '/home/hja/Projects/OrgansSegment/Data/BTCV/RawData/Testing'
     raw_img_path = os.path.join(raw_path, 'img')
 
     # test sample save path
-    sample_path = r'D:\Projects\OrgansSegment\SegWithPatch\samples\Testing'
+    sample_path = '../../samples/BTCV/Testing'
     sample_img_path = os.path.join(sample_path, 'img')
     if os.path.exists(sample_path) is True:
         shutil.rmtree(sample_path)
