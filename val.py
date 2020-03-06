@@ -5,6 +5,7 @@ import numpy as np
 import csv
 from utils import organs_properties, calc_weight_matrix, post_process
 from models.td_unet import get_net
+# from models.td_unet_cnn import get_net
 # from models.dense_vnet import get_net
 import scipy.ndimage as ndimage
 
@@ -12,22 +13,39 @@ organs_name = organs_properties['organs_name']
 sample_path = organs_properties['sample_path']
 num_organ = organs_properties['num_organ']
 
-model_dir = './module/td_unet400-0.842-0.740.pth'
+model_dir = './module/td_unet110-0.529.pth'
 
 sample_size = 64  # 64*64*64 for a patch
-new_spcacing = 2
+slice_size = 140  # 140*140 for a slice
+sample_stride = int(sample_size / 2)
+batch_size = 4
 
 
 def patch_predict(net, patch):
+    """
+    forward to predict
+    :param net: module
+    :param patch: (8, 64, 64, 64)
+    :param slices: (8, 6, 140, 140)
+    :return:
+    """
     with torch.no_grad():
-        patch_tensor = torch.FloatTensor(patch).cuda()
-        patch_tensor = patch_tensor.unsqueeze(dim=0)
-        patch_tensor = patch_tensor.unsqueeze(dim=0)  # (1, 1, 64, 64, 64)
+        patch_tensor = torch.FloatTensor(patch).unsqueeze(1).cuda()  # (8, 1, 64, 64, 64)
 
         output = net(patch_tensor)
-        output = output.squeeze().cpu().detach().numpy()  # (14, 64, 64, 64)
+        prediction = output.squeeze().cpu().detach().numpy()  # (14, 64, 64, 64)
+        del patch_tensor, output
+        torch.cuda.empty_cache()
 
-    return output
+    return prediction
+
+
+def patch_border(start, s):
+    end = start + sample_size
+    if end >= s:
+        return s - sample_size, s, 1
+    else:
+        return start, end, 0
 
 
 def volume_predict(net, vol_array):
@@ -38,37 +56,43 @@ def volume_predict(net, vol_array):
     :return: prediction
     """
     net.eval()
-    s = vol_array.shape
+    vs = vol_array.shape
 
-    # padding，补 -1
-    pds = []
-    sample_stride = int(sample_size / 2)
-    for d in s:
-        pd = np.ceil(d/sample_stride)*sample_stride - d
-        pds.append(int(np.floor(pd / 2)))
-        pds.append(int(np.ceil(pd / 2)))
-
-    vol_padding = np.ones((s[0] + sum(pds[:2]), s[1] + sum(pds[2:4]), s[2] + sum(pds[4:]))) * -1
-    vol_padding[pds[0]:pds[0]+s[0], pds[2]:pds[2]+s[1], pds[4]:pds[4]+s[2]] = vol_array
     # 切割patch（重叠sample_size/2） -> patch predict -> prediction填充
     weight_matrix = calc_weight_matrix(sample_size)  # （64, 64, 64)
-    ps = vol_padding.shape
-    vol_predict = np.zeros((num_organ+1, ps[0], ps[1], ps[2]))
-    for z_start in range(0, ps[0]-sample_size+1, sample_stride):
-        z_end = z_start + sample_size
-        for x_start in range(0, ps[1]-sample_size+1, sample_stride):
-            x_end = x_start + sample_size
-            for y_start in range(0, ps[2]-sample_size+1, sample_stride):
-                y_end = y_start + sample_size
+    vol_predict = np.zeros((num_organ+1, vs[0], vs[1], vs[2]))
 
-                patch = vol_padding[z_start:z_end, x_start:x_end, y_start:y_end]
-                prediction = patch_predict(net, patch)  # (14, 64, 64, 64)
+    patch_batch = np.zeros((batch_size, sample_size, sample_size, sample_size))
+    slices_batch = np.zeros((batch_size, 6, slice_size, slice_size))
+    bd = np.zeros((batch_size, 6)).astype(np.int)  # record border of batch
+    sample_count = 0
+    for z_start in range(0, vs[0], sample_stride):
+        z_start, z_end, z_over = patch_border(z_start, vs[0])
+        for x_start in range(0, vs[1], sample_stride):
+            x_start, x_end, x_over = patch_border(x_start, vs[1])
+            for y_start in range(0, vs[2], sample_stride):
+                y_start, y_end, y_over = patch_border(y_start, vs[2])
 
-                vol_predict[:, z_start:z_end, x_start:x_end, y_start:y_end] += (prediction * weight_matrix)
-                del prediction
+                patch = vol_array[z_start:z_end, x_start:x_end, y_start:y_end]  # (64, 64, 64)
+                patch_batch[sample_count] = patch
+                bd[sample_count] = [z_start, z_end, x_start, x_end, y_start, y_end]
+                sample_count += 1
+
+                if sample_count == batch_size:
+                    prediction = patch_predict(net, patch_batch)  # (14, 64, 64, 64)
+                    for i in range(batch_size):
+                        vol_predict[:, bd[i][0]:bd[i][1], bd[i][2]:bd[i][3], bd[i][4]:bd[i][5]] += \
+                            (prediction[i] * weight_matrix)
+                    sample_count = 0
+
+                if y_over:
+                    break
+            if x_over:
+                break
+        if z_over:
+            break
 
     vol_predict = np.argmax(vol_predict, axis=0)
-    vol_predict = vol_predict[pds[0]:pds[0]+s[0], pds[2]:pds[2]+s[1], pds[4]:pds[4]+s[2]]
     return vol_predict
 
 
@@ -175,11 +199,11 @@ if __name__ == "__main__":
     net.eval()
 
     # val_org_mean_dice = dataset_prediction(net, 'csv_files/btcv_val_info.csv', show_sample_dice=True, save=True, postprocess=True)
-    # val_org_mean_dice = dataset_prediction(net, 'csv_files/btcv_val_info.csv',
-    #                                        raw_data_dir=r'D:\Projects\OrgansSegment\BTCV\RawData\Training', show_sample_dice=True, save=True, postprocess=True)
-    # print("mean dice: %.3f" % np.mean(val_org_mean_dice))
+    val_org_mean_dice = dataset_prediction(net, 'csv_files/btcv_val_info.csv',
+                                           raw_data_dir=r'D:\Projects\OrgansSegment\BTCV\RawData\Training', show_sample_dice=True, save=True, postprocess=True)
+    print("mean dice: %.3f" % np.mean(val_org_mean_dice))
 
     # test set
-    dataset_prediction(net, 'csv_files/btcv_test_info.csv',
-                       raw_data_dir=r'D:\Projects\OrgansSegment\BTCV\RawData\Testing', cal_acc=False, save=True, postprocess=True)
+    # dataset_prediction(net, 'csv_files/btcv_test_info.csv',
+    #                    raw_data_dir=r'D:\Projects\OrgansSegment\BTCV\RawData\Testing', cal_acc=False, save=True, postprocess=True)
 
