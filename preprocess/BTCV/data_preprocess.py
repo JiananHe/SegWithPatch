@@ -8,8 +8,8 @@ import random
 
 random.seed(123)
 
-ct_upper = 275.0
-ct_lower = -125.0
+ct_upper = 300.0
+ct_lower = -150.0
 new_spcacing = 2
 
 
@@ -76,7 +76,7 @@ def preprocess(img_name, img_vol, lbl_vol=None):
 
 if __name__ == "__main__":
     # raw training data path
-    raw_path = '/home/hja/Projects/OrgansSegment/Data/BTCV/RawData/Training'
+    raw_path = r'D:\Projects\OrgansSegment\BTCV\RawData\Training'
     raw_img_path = os.path.join(raw_path, 'img')
     raw_lbl_path = os.path.join(raw_path, 'label')
 
@@ -107,34 +107,34 @@ if __name__ == "__main__":
     train_info_writer = csv.writer(train_info_file)
     val_info_writer = csv.writer(val_info_file)
 
-    random.shuffle(info)
-    for f in info[:6]:
+#    random.shuffle(info)
+    for f in info[30:]:
         val_info_writer.writerow(f)
-    for f in info[6:]:
+    for f in info:
         train_info_writer.writerow(f)
 
-    ################################### label #####################################
-    # raw testing data path
-    raw_path = '/home/hja/Projects/OrgansSegment/Data/BTCV/RawData/Testing'
-    raw_img_path = os.path.join(raw_path, 'img')
-
-    # test sample save path
-    sample_path = '../../samples/BTCV/Testing'
-    sample_img_path = os.path.join(sample_path, 'img')
-    if os.path.exists(sample_path) is True:
-        shutil.rmtree(sample_path)
-    os.mkdir(sample_path)
-    os.mkdir(sample_img_path)
-
-    test_info_file = open('../../csv_files/btcv_test_info.csv', 'w', newline="")
-    info = []
-
-    for case in os.listdir(raw_img_path):
-        # read image
-        img_vol = sitk.ReadImage(os.path.join(raw_img_path, case))
-
-        preprocess(case, img_vol)
-
-    test_info_writer = csv.writer(test_info_file)
-    for f in info:
-        test_info_writer.writerow(f)
+#    ################################### label #####################################
+#    # raw testing data path
+#    raw_path = '/seu_share/home/chenyang.list/JiananHe/OrgansSegment/Data/BTCV/RawData/Testing'
+#    raw_img_path = os.path.join(raw_path, 'img')
+#
+#    # test sample save path
+#    sample_path = '../../samples/BTCV/Testing'
+#    sample_img_path = os.path.join(sample_path, 'img')
+#    if os.path.exists(sample_path) is True:
+#        shutil.rmtree(sample_path)
+#    os.mkdir(sample_path)
+#    os.mkdir(sample_img_path)
+#
+#    test_info_file = open('../../csv_files/btcv_test_info.csv', 'w', newline="")
+#    info = []
+#
+#    for case in os.listdir(raw_img_path):
+#        # read image
+#        img_vol = sitk.ReadImage(os.path.join(raw_img_path, case))
+#
+#        preprocess(case, img_vol)
+#
+#    test_info_writer = csv.writer(test_info_file)
+#    for f in info:
+#        test_info_writer.writerow(f)

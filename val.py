@@ -13,7 +13,7 @@ organs_name = organs_properties['organs_name']
 sample_path = organs_properties['sample_path']
 num_organ = organs_properties['num_organ']
 
-model_dir = './module/td_unet110-0.529.pth'
+model_dir = './module/td_unet410-0.373.pth'
 
 sample_size = 64  # 64*64*64 for a patch
 slice_size = 140  # 140*140 for a slice
@@ -202,6 +202,10 @@ if __name__ == "__main__":
     val_org_mean_dice = dataset_prediction(net, 'csv_files/btcv_val_info.csv',
                                            raw_data_dir=r'D:\Projects\OrgansSegment\BTCV\RawData\Training', show_sample_dice=True, save=True, postprocess=True)
     print("mean dice: %.3f" % np.mean(val_org_mean_dice))
+
+    # val_org_mean_dice = dataset_prediction(net, 'csv_files/btcv_val_info.csv',
+    #                                        show_sample_dice=True, save=True, postprocess=True)
+    # print("mean dice: %.3f" % np.mean(val_org_mean_dice))
 
     # test set
     # dataset_prediction(net, 'csv_files/btcv_test_info.csv',
