@@ -1,3 +1,7 @@
+###
+# 灰度阈值截取 []
+# 重采样为 []
+###
 import SimpleITK as sitk
 import os
 import numpy as np
@@ -13,7 +17,7 @@ ct_lower = -150.0
 new_spcacing = 2
 
 
-def preprocess(img_name, img_vol, lbl_vol=None):
+def preprocess(img_name, img_vol, sample_img_path, info, lbl_vol=None):
     img_array = sitk.GetArrayFromImage(img_vol)
     raw_shape = img_array.shape
 
@@ -37,6 +41,8 @@ def preprocess(img_name, img_vol, lbl_vol=None):
     new_img_vol.SetOrigin(img_vol.GetOrigin())
     new_img_vol.SetSpacing((new_spcacing, new_spcacing, new_spcacing))
 
+    if img_name[-7] != ".nii.gz":
+        img_name = img_name + ".nii.gz"
     new_img_name = os.path.join(sample_img_path, img_name)
     sitk.WriteImage(new_img_vol, new_img_name)
 
@@ -101,7 +107,7 @@ if __name__ == "__main__":
         lbl_case = case.replace('img', 'label')
         lbl_vol = sitk.ReadImage(os.path.join(raw_lbl_path, lbl_case))
 
-        preprocess(case, img_vol, lbl_vol)
+        preprocess(case, img_vol, sample_img_path, info, lbl_vol)
 
     # 分为训练集，验证集与测试集(24, 6)
     train_info_writer = csv.writer(train_info_file)

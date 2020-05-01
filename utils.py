@@ -3,6 +3,7 @@ import numpy as np
 from skimage import measure
 import random
 import os
+import SimpleITK as sitk
 
 # 器官属性
 organs_properties = {'organs_name': ['spleen', 'rkidny', 'lkidney', 'gallbladder', 'esophagus', 'liver', 'stomach',
@@ -82,6 +83,20 @@ def post_process(input):
         output[id, :, :, :] = org_seg
 
     return np.argmax(output, axis=0)
+
+
+def read_dicom(path):
+    # read dicom series
+    reader = sitk.ImageSeriesReader()
+    img_names = reader.GetGDCMSeriesFileNames(path)
+    reader.SetFileNames(img_names)
+    image = reader.Execute()
+    # image_array = sitk.GetArrayFromImage(image)
+    # spacing = image.GetSpacing()
+    # origin = image.GetOrigin()
+    # dims = image.GetDimension()
+
+    return image
 
 
 if __name__ == "__main__":
