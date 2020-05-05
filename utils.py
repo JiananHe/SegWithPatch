@@ -99,6 +99,14 @@ def read_dicom(path):
     return image
 
 
+def read_nii(path, type=None):
+    # read nifit
+    if type == None:
+        return sitk.ReadImage(path)
+    else:
+        return sitk.ReadImage(path, type)
+
+
 if __name__ == "__main__":
     a = torch.randint(1, 10, (6, 9, 48, 256, 256))
     b = torch.randint(1, 10, (6, 48, 256, 256))

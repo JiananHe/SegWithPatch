@@ -68,7 +68,7 @@ for epoch in range(1, Epoch+1):
     opt.zero_grad()
 
     # 数据 (注意：虽然batch_size为1，但是实际包含samples_every_vol个patch)，每个epoch重新计算sampling count
-    train_ds = MyDataset('csv_files/btcv_train_info.csv', organs_weight, samples_every_vol, grad_accum_steps)
+    train_ds = MyDataset('info_files/btcv_train_info.csv', organs_weight, samples_every_vol, grad_accum_steps)
     train_dl = DataLoader(train_ds, batch_size, True, num_workers=num_workers, pin_memory=pin_memory)
 
     for step, (ct, seg) in enumerate(train_dl): # 24 steps in BTCV
@@ -110,7 +110,7 @@ for epoch in range(1, Epoch+1):
     if epoch % 20 is 0:
         os.system('echo %s' % "--------evaluation on validation set----------")
         val_eval_start = time()
-        val_org_mean_dice = dataset_prediction(net, 'csv_files/btcv_val_info.csv')
+        val_org_mean_dice = dataset_prediction(net, 'info_files/btcv_val_info.csv')
         writer.add_scalars('valset orgs dice',
                            {name: val_org_mean_dice[i] for i, name in enumerate(organs_name)}, epoch)
 
@@ -127,7 +127,7 @@ for epoch in range(1, Epoch+1):
     if epoch % 40 is 0:
         os.system('echo %s' % "----------evaluation on training set-----------")
         train_eval_start = time()
-        train_org_mean_dice = dataset_prediction(net, 'csv_files/btcv_train_info.csv')
+        train_org_mean_dice = dataset_prediction(net, 'info_files/btcv_train_info.csv')
         writer.add_scalars('trainset orgs dice',
                            {name: train_org_mean_dice[i] for i, name in enumerate(organs_name)}, epoch)
 

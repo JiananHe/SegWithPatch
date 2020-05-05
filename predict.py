@@ -16,7 +16,7 @@ from preprocess.BTCV.data_preprocess import preprocess
 if __name__ == "__main__":
     # # preprocess
     # info = []
-    # info_file = open('./csv_files/private_data_info.csv', 'w', newline="")
+    # info_file = open('./info_files/private_data_info.csv', 'w', newline="")
     # raw_img_path = r"D:\Projects\OrgansSegment\Data\PrivateData\RawData"
     # sample_img_path = r"D:\Projects\OrgansSegment\Data\PrivateData\Samples"
     # info_writer = csv.writer(info_file)
@@ -39,5 +39,5 @@ if __name__ == "__main__":
     net.load_state_dict(torch.load('./module/td_unet410-0.373.pth'))
     net.eval()
 
-    dataset_prediction(net, 'csv_files/private_data_info.csv',
+    dataset_prediction(net, 'info_files/private_data_info.csv',
                        raw_data_dir=r'D:\Projects\OrgansSegment\Data\PrivateData\RawDataNii', cal_acc=False, save=True, postprocess=True)
