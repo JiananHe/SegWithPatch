@@ -5,6 +5,11 @@ import random
 import os
 import SimpleITK as sitk
 
+
+preprocessed_save_path = "../../samples/BTCV/Training"
+samples_info_file = "../../info_files/training_samples_info.csv"
+dataset_info_file = "../../info_files/trainset_info.json"
+
 # 器官属性
 organs_properties = {'organs_name': ['spleen', 'rkidny', 'lkidney', 'gallbladder', 'esophagus', 'liver', 'stomach',
                                      'aorta', 'vena', 'vein', 'pancreas', 'rgland', 'lgland'],

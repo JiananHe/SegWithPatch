@@ -1,18 +1,10 @@
-import SimpleITK as sitk
-import os
-import numpy as np
 from collections import Counter
-import shutil
-import scipy.ndimage as ndimage
 import csv
 import json
-import random
+import shutil
+from skimage.transform import resize
+from batchgenerators.utilities.file_and_folder_operations import *
 from utils import *
-
-
-preprocessed_save_path = "../../samples/BTCV/Training"
-samples_info_file = "../../info_files/training_samples_info.csv"
-dataset_info_file = "../../info_files/trainset_info.json"
 
 
 def check_path():
@@ -173,6 +165,84 @@ def register_dataset(fixed_image_name):
         sitk.WriteImage(out_movingImage, os.path.join(preprocessed_save_path, "registration", moving_image_name))
 
 
+# def resample_data_or_seg(data, orig_spacing, new_spacing, is_seg, anisotropy_threshold):
+#     """
+#     resample an image or a segmentation.
+#     if the maximum spacing / minimum spacing > 3, then resampling in-plane slice along other two smaller axises with
+#     3-order spline interpolation, and resampling with the nearest interpolation along the axis with the maximum spacing.
+#     Otherwise resmapling the whole 3D data with 3-order spline interpolation (image) or the nearest interpolation (segmentation).
+#     :param data: 3D numpy array (an image or a segmentation)
+#     :param orig_spacing: original spacing
+#     :param new_spacing: new spacing
+#     :param is_seg: bool
+#     :param anisotropy_threshold: 3
+#     :return: resampled data
+#     """
+#     assert len(data.shape) == 3, "data must be (z, x, y)"
+#     # resample function for image or segmentation
+#     if is_seg:
+#         resize_fn = resize_segmentation
+#         order = 0
+#         cval = -1
+#         kwargs = OrderedDict()
+#     else:
+#         resize_fn = resize
+#         order = 3
+#         cval = 0
+#         kwargs = {'mode': 'edge', 'anti_aliasing': False}
+#
+#     assert np.where(max(new_spacing) / np.array(new_spacing) == 1)[0] == 0  # Note: z spacing should be the largest
+#     is_anisotropy = (np.max(orig_spacing) / np.min(orig_spacing)) > 3 or (np.max(new_spacing) / np.min(new_spacing)) > anisotropy_threshold
+#
+#     dtype_data = data.dtype
+#     data = data.astype(float)
+#     shape = np.array(data.shape)
+#     new_shape = np.round(((np.array(orig_spacing) / np.array(new_spacing)).astype(float) * shape)).astype(int)
+#
+#     if np.any(shape != new_shape):
+#         if is_anisotropy:
+#             reshaped_data = []
+#             for slice_id in range(shape[0]):
+#                 reshaped_data.append(resize_fn(data[slice_id], new_shape[1:], order, cval=cval, **kwargs))
+#
+#             reshaped_data = np.stack(reshaped_data)
+#             assert new_shape[1:] == reshaped_data.shape[1:]
+#             if shape[0] != new_shape[0]:
+#                 dims, rows, cols = new_shape
+#                 orig_dims = reshaped_data.shape[0]
+#
+#                 dim_scale = float(orig_dims) / dims
+#
+#                 map_dims, map_rows, map_cols = np.mgrid[:dims, :rows, :cols]  # np.mgrid: return shape (3, dims, rows, cols)
+#                 map_dims = dim_scale * (map_dims + 0.5) - 0.5
+#
+#                 coord_map = np.array([map_rows, map_cols, map_dims])
+#                 if not is_seg:
+#                     reshaped_final_data = map_coordinates(reshaped_data, coord_map, order=0, cval=cval, mode='nearest')
+#                 else:
+#                     unique_labels = np.unique(reshaped_data)
+#                     reshaped = np.zeros(new_shape, dtype=dtype_data)
+#
+#                     for i, cl in enumerate(unique_labels):
+#                         reshaped_multihot = np.round(
+#                             map_coordinates((reshaped_data == cl).astype(float), coord_map, order=0, cval=cval, mode='nearest'))
+#                         reshaped[reshaped_multihot > 0.5] = cl
+#                     reshaped_final_data = reshaped
+#             else:
+#                 reshaped_final_data.append(reshaped_data[None])
+#         reshaped_final_data = np.vstack(reshaped_final_data)
+#         else:
+#             print("no separate z, order", order)
+#             reshaped = []
+#             for c in range(data.shape[0]):
+#                 reshaped.append(resize_fn(data[c], new_shape, order, cval=cval, **kwargs)[None])
+#             reshaped_final_data = np.vstack(reshaped)
+#         return reshaped_final_data.astype(dtype_data)
+#     else:
+#         print("no resampling necessary")
+#         return data
+
+
 def intensity_statistic(intensity_dict=None):
     """
     calculate the clip intensity and statistic information(mean and variance)
@@ -230,6 +300,7 @@ def intensity_clip_norm(clip_min_intensity, clip_max_intensity, mean, variance):
     """
     print("\nClip and normalize intensity...")
     for image_name in os.listdir(os.path.join(preprocessed_save_path, "img")):
+        print(image_name)
         image_vol = read_nii(os.path.join(preprocessed_save_path, "img", image_name))
         image_array = sitk.GetArrayFromImage(image_vol)
         image_array = np.clip(image_array, clip_min_intensity, clip_max_intensity)
@@ -237,7 +308,7 @@ def intensity_clip_norm(clip_min_intensity, clip_max_intensity, mean, variance):
 
         save_volume(image_array, [image_vol.GetSpacing(), image_vol.GetDirection(), image_vol.GetOrigin()],
                     os.path.join(preprocessed_save_path, "img", image_name))
-
+        np.save(os.path.join(preprocessed_save_path, "img", image_name).replace("nii.gz", "npy"), image_array)
 
 
 def train_dataset_preprocess(images_path, labels_path, format='nii'):
@@ -252,15 +323,19 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
         dataset_info = json.load(open(dataset_info_file, "r"))
         print(dataset_info)
         return
+    else:
+        shutil.rmtree(os.path.join(preprocessed_save_path, "img"))
+        shutil.rmtree(os.path.join(preprocessed_save_path, "label"))
 
     # check paths and names of labels and images
     check_path()
     images_names = os.listdir(images_path)
     assert os.listdir(labels_path) == [match_lbl_name(img_name) for img_name in images_names]
 
-    # calculate the median spacing and variables to record the broadest sample and intensities
+    # calculate the median spacing and record the broadest sample and intensities
     dataset_info = {}
-    median_spacing = get_median_spacing(images_path, labels_path)
+    # median_spacing = get_median_spacing(images_path, labels_path)
+    median_spacing = [0.758, 0.758, 3.0]
     broadest_sample_shape = 0
     broadest_sample = ""
     intensities_counter = Counter({})
@@ -286,6 +361,10 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
         # get numpy array
         image_array = sitk.GetArrayFromImage(image_vol)
         label_array = sitk.GetArrayFromImage(label_vol)
+        image_dtype = image_array.dtype
+        image_array = image_array.astype(float)
+        label_dtype = label_array.dtype
+        label_array = label_array.astype(float)
         assert image_array.shape == label_array.shape, "the shapes of image and label in %s are different" % image_name
 
         # step 1: crop to roi
@@ -293,13 +372,17 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
 
         # step 2: resample to median spacing
         raw_image_spacing = image_vol.GetSpacing()
+        cropped_shape = image_cropped.shape
+        new_shape = np.round((np.array([raw_image_spacing[2] / median_spacing[2],
+                                        raw_image_spacing[0] / median_spacing[0],
+                                        raw_image_spacing[1] / median_spacing[1]]).astype(float) * cropped_shape)).astype(int)
 
-        image_resampled = ndimage.zoom(image_cropped, (raw_image_spacing[2] / median_spacing[2],
-                                                       raw_image_spacing[0] / median_spacing[0],
-                                                       raw_image_spacing[1] / median_spacing[1]), order=3)
-        label_resampled = ndimage.zoom(label_cropped, (raw_image_spacing[2] / median_spacing[2],
-                                                       raw_image_spacing[0] / median_spacing[0],
-                                                       raw_image_spacing[1] / median_spacing[1]), order=0)
+        if np.any(new_shape != cropped_shape):
+            image_resampled = resize(image_cropped, new_shape, order=3, preserve_range=True).astype(image_dtype)
+            label_resampled = resize(label_cropped, new_shape, order=0, preserve_range=True, anti_aliasing=False).astype(label_dtype)
+        else:
+            image_resampled = image_cropped
+            label_resampled = label_cropped
         assert image_resampled.shape == label_resampled.shape
 
         # statistic max shape
@@ -315,10 +398,13 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
 
         save_volume(image_resampled, [median_spacing, image_vol.GetDirection(), image_vol.GetOrigin()], image_save_path)
         save_volume(label_resampled, [median_spacing, image_vol.GetDirection(), image_vol.GetOrigin()], label_save_path)
+        np.save(label_save_path.replace("nii.gz", "npy"), label_resampled)
 
-        samples_infos.append([image_save_path, label_save_path, crop_coord, image_resampled.shape])
+        samples_infos.append([image_save_path.replace("nii.gz", "npy"), label_save_path.replace("nii.gz", "npy"),
+                              crop_coord, image_resampled.shape])
 
     # record the information about save path and cropping coordinates in csv file
+    np.random.shuffle(samples_infos)
     for info in samples_infos:
         samples_info_writer.writerow(info)
 
