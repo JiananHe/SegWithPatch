@@ -6,9 +6,18 @@ import os
 import SimpleITK as sitk
 
 
-preprocessed_save_path = "../../samples/BTCV/Training"
-samples_info_file = "../../info_files/training_samples_info.csv"
-dataset_info_file = "../../info_files/trainset_info.json"
+project_root_path = os.path.abspath(os.path.dirname(__file__))
+preprocessed_save_path = os.path.join(project_root_path, "samples/BTCV/Training")
+samples_info_file = os.path.join(project_root_path, "info_files/training_samples_info.csv")
+dataset_info_file = os.path.join(project_root_path, "info_files/trainset_info.json")
+
+num_steps_for_backward = 6  # how many training steps between two backward?
+# number of patches in a batch = num_patches_volume * num_volumes_batch
+num_patches_volume = 2
+num_volumes_batch = 2
+
+patch_size = np.array([48, 128, 128])
+crop_size = np.array([i * 3 / 2 for i in patch_size], dtype=np.int)
 
 # 器官属性
 organs_properties = {'organs_name': ['spleen', 'rkidny', 'lkidney', 'gallbladder', 'esophagus', 'liver', 'stomach',
@@ -25,6 +34,10 @@ organs_properties = {'organs_name': ['spleen', 'rkidny', 'lkidney', 'gallbladder
 #                                      5: 1916.685393258427, 6: 208806.8777777778, 7: 50836.01111111111,
 #                                      11: 9410.111111111111, 14: 11118.544444444444},
 #                      'num_organ': 8}
+
+class_weight = np.array(organs_properties["organs_weight"])
+class_weight = class_weight / np.sum(class_weight)
+current_counts = np.zeros(len(class_weight))
 
 organs_name = organs_properties['organs_name']
 num_organ = organs_properties['num_organ']

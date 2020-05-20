@@ -76,23 +76,30 @@ def save_volume(save_array, volume_properties, save_path):
     sitk.WriteImage(save_volume, save_path)
 
 
-def crop_roi(image_vol, label_vol):
+def crop_roi(image, label):
     """
     crop the image and label to the roi
-    :param image_vol: volume of CT image
-    :param label_vol: volume of label
+    :param image: volume of CT image
+    :param label: volume of label
     :return: cropped image and label, cropping coordinates
     """
-    image = sitk.GetArrayFromImage(image_vol)
-    label = sitk.GetArrayFromImage(label_vol)
     assert image.shape == label.shape
+    s = image.shape
 
     z_min = np.min(np.where(label != 0)[0])
+    # z_min = z_min - crop_size[0] // 2 if z_min - crop_size[0] // 2 > 0 else 0
     z_max = np.max(np.where(label != 0)[0]) + 1
+    # z_max = z_max + crop_size[0] // 2 if z_max + crop_size[0] // 2 < s[0] else s[0]
+
     x_min = np.min(np.where(label != 0)[1])
+    # x_min = x_min - crop_size[1] // 2 if x_min - crop_size[1] // 2 > 0 else 0
     x_max = np.max(np.where(label != 0)[1]) + 1
+    # x_max = x_max + crop_size[1] // 2 if x_max + crop_size[1] // 2 < s[1] else s[1]
+
     y_min = np.min(np.where(label != 0)[2])
+    # y_min = y_min - crop_size[2] // 2 if y_min - crop_size[2] // 2 > 0 else 0
     y_max = np.max(np.where(label != 0)[2]) + 1
+    # y_max = y_max + crop_size[2] // 2 if y_max + crop_size[2] // 2 < s[2] else s[2]
 
     image_cropped = image[z_min:z_max, x_min:x_max, y_min:y_max]
     label_cropped = label[z_min:z_max, x_min:x_max, y_min:y_max]
@@ -343,11 +350,10 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
     # samples infos to be recorded
     samples_infos = []
     samples_info_writer = csv.writer(open(samples_info_file, "w", newline=""))
-    samples_info_writer.writerow(["resampled_image", "resampled_label", "cropped_coordinates", "resampled_shape"])
+    samples_info_writer.writerow(["resampled_image", "resampled_label", "raw_spacing", "resampled_shape", "cropped_coordinates", "final shape"])
 
     print("\nPreProcess training set...")
     for image_name in images_names:
-        print(image_name)
         # read volumes of images and labels
         if format == "nii":
             image_vol = read_nii(os.path.join(images_path, image_name))
@@ -365,43 +371,46 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
         image_array = image_array.astype(float)
         label_dtype = label_array.dtype
         label_array = label_array.astype(float)
+        print(image_name, image_dtype)
         assert image_array.shape == label_array.shape, "the shapes of image and label in %s are different" % image_name
 
-        # step 1: crop to roi
-        image_cropped, label_cropped, crop_coord = crop_roi(image_vol, label_vol)
-
-        # step 2: resample to median spacing
+        # step 1: resample to median spacing
         raw_image_spacing = image_vol.GetSpacing()
-        cropped_shape = image_cropped.shape
+        raw_shape = image_array.shape
         new_shape = np.round((np.array([raw_image_spacing[2] / median_spacing[2],
                                         raw_image_spacing[0] / median_spacing[0],
-                                        raw_image_spacing[1] / median_spacing[1]]).astype(float) * cropped_shape)).astype(int)
+                                        raw_image_spacing[1] / median_spacing[1]]).astype(float) * raw_shape)).astype(int)
 
-        if np.any(new_shape != cropped_shape):
-            image_resampled = resize(image_cropped, new_shape, order=3, preserve_range=True).astype(image_dtype)
-            label_resampled = resize(label_cropped, new_shape, order=0, preserve_range=True, anti_aliasing=False).astype(label_dtype)
+        if np.any(new_shape != raw_shape):
+            image_resampled = resize(image_array, new_shape, order=3, preserve_range=True)
+            label_resampled = resize(label_array, new_shape, order=0, preserve_range=True, anti_aliasing=False)
         else:
-            image_resampled = image_cropped
-            label_resampled = label_cropped
+            image_resampled = image_array
+            label_resampled = label_array
         assert image_resampled.shape == label_resampled.shape
 
+        # step 2: crop to roi
+        image_cropped, label_cropped, crop_coord = crop_roi(image_resampled, label_resampled)
+        image_cropped = image_cropped.astype(image_dtype)
+        label_cropped = label_cropped.astype(label_dtype)
+
         # statistic max shape
-        if broadest_sample_shape < np.product(image_resampled.shape):
-            broadest_sample_shape = np.product(image_resampled.shape)
+        if broadest_sample_shape < np.product(image_cropped.shape):
+            broadest_sample_shape = np.product(image_cropped.shape)
             broadest_sample = image_name
         # statistic gray info
-        intensities_counter += Counter(image_resampled[label_resampled != 0])
+        intensities_counter += Counter(image_cropped[label_cropped != 0])
 
         # save the cropped and resampled data temporarily
         image_save_path = os.path.abspath(os.path.join(preprocessed_save_path, "img", image_name))
         label_save_path = os.path.abspath(os.path.join(preprocessed_save_path, "label", match_lbl_name(image_name)))
 
-        save_volume(image_resampled, [median_spacing, image_vol.GetDirection(), image_vol.GetOrigin()], image_save_path)
-        save_volume(label_resampled, [median_spacing, image_vol.GetDirection(), image_vol.GetOrigin()], label_save_path)
+        save_volume(image_cropped, [median_spacing, image_vol.GetDirection(), image_vol.GetOrigin()], image_save_path)
+        save_volume(label_cropped, [median_spacing, image_vol.GetDirection(), image_vol.GetOrigin()], label_save_path)
         np.save(label_save_path.replace("nii.gz", "npy"), label_resampled)
 
         samples_infos.append([image_save_path.replace("nii.gz", "npy"), label_save_path.replace("nii.gz", "npy"),
-                              crop_coord, image_resampled.shape])
+                              raw_image_spacing, image_resampled.shape, crop_coord, image_cropped.shape])
 
     # record the information about save path and cropping coordinates in csv file
     np.random.shuffle(samples_infos)
@@ -414,7 +423,7 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
     # calculate the clip intensity and statistic information(mean and variance)
     clip_min_intensity, clip_max_intensity, mean, variance = intensity_statistic(dict(intensities_counter))
 
-    # clip and normalize intensity
+    # step 3: clip and normalize intensity
     intensity_clip_norm(clip_min_intensity, clip_max_intensity, mean, variance)
 
     # record data set infomation
