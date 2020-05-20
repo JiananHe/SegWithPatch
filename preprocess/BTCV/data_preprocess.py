@@ -24,7 +24,7 @@ def match_lbl_name(img_name):
     :return: label name
     """
     # in BTCV dataset, img0001.nii.gz --> label0001.nii.gz
-    return img_name.replace("img", "label")
+    return img_name.replace("img", "img")
 
 
 def get_median_spacing(images_path, labels_path, format="nii"):
@@ -296,13 +296,13 @@ def intensity_statistic(intensity_dict=None):
     return int(clip_min_intensity), int(clip_max_intensity), mean, variance
 
 
-def intensity_clip_norm(clip_min_intensity, clip_max_intensity, mean, variance):
+def intensity_clip_norm(clip_min_intensity, clip_max_intensity, mean, std_variance):
     """
     clip and normalize the intensity of all samples according to the data set info
     :param clip_min_intensity: the low intensity threshold
     :param clip_max_intensity: the high intensity threshold
     :param mean: mean
-    :param variance: variance
+    :param std_variance: standard variance
     :return: None
     """
     print("\nClip and normalize intensity...")
@@ -311,7 +311,7 @@ def intensity_clip_norm(clip_min_intensity, clip_max_intensity, mean, variance):
         image_vol = read_nii(os.path.join(preprocessed_save_path, "img", image_name))
         image_array = sitk.GetArrayFromImage(image_vol)
         image_array = np.clip(image_array, clip_min_intensity, clip_max_intensity)
-        image_array = (image_array - mean) / np.sqrt(variance)
+        image_array = (image_array - mean) / std_variance
 
         save_volume(image_array, [image_vol.GetSpacing(), image_vol.GetDirection(), image_vol.GetOrigin()],
                     os.path.join(preprocessed_save_path, "img", image_name))
@@ -342,15 +342,15 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
     # calculate the median spacing and record the broadest sample and intensities
     dataset_info = {}
     # median_spacing = get_median_spacing(images_path, labels_path)
-    median_spacing = [0.758, 0.758, 3.0]
-    broadest_sample_shape = 0
-    broadest_sample = ""
-    intensities_counter = Counter({})
+    median_spacing = [0.76, 0.76, 3.0]
+    # broadest_sample_shape = 0
+    # broadest_sample = ""
+    # intensities_counter = Counter({})
 
     # samples infos to be recorded
     samples_infos = []
     samples_info_writer = csv.writer(open(samples_info_file, "w", newline=""))
-    samples_info_writer.writerow(["resampled_image", "resampled_label", "raw_spacing", "resampled_shape", "cropped_coordinates", "final shape"])
+    samples_info_writer.writerow(["processed_image", "processed_label", "raw_spacing", "resampled_shape", "cropped_coordinates", "final_shape"])
 
     print("\nPreProcess training set...")
     for image_name in images_names:
@@ -394,16 +394,16 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
         image_cropped = image_cropped.astype(image_dtype)
         label_cropped = label_cropped.astype(label_dtype)
 
-        # statistic max shape
-        if broadest_sample_shape < np.product(image_cropped.shape):
-            broadest_sample_shape = np.product(image_cropped.shape)
-            broadest_sample = image_name
-        # statistic gray info
-        intensities_counter += Counter(image_cropped[label_cropped != 0])
+        # # statistic max shape
+        # if broadest_sample_shape < np.product(image_cropped.shape):
+        #     broadest_sample_shape = np.product(image_cropped.shape)
+        #     broadest_sample = image_name
+        # # statistic gray info
+        # intensities_counter += Counter(image_cropped[label_cropped != 0])
 
         # save the cropped and resampled data temporarily
         image_save_path = os.path.abspath(os.path.join(preprocessed_save_path, "img", image_name))
-        label_save_path = os.path.abspath(os.path.join(preprocessed_save_path, "label", match_lbl_name(image_name)))
+        label_save_path = os.path.abspath(os.path.join(preprocessed_save_path, "label", match_lbl_name(image_name).replace("img", "label")))
 
         save_volume(image_cropped, [median_spacing, image_vol.GetDirection(), image_vol.GetOrigin()], image_save_path)
         save_volume(label_cropped, [median_spacing, image_vol.GetDirection(), image_vol.GetOrigin()], label_save_path)
@@ -413,7 +413,7 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
                               raw_image_spacing, image_resampled.shape, crop_coord, image_cropped.shape])
 
     # record the information about save path and cropping coordinates in csv file
-    np.random.shuffle(samples_infos)
+    # np.random.shuffle(samples_infos)
     for info in samples_infos:
         samples_info_writer.writerow(info)
 
@@ -421,18 +421,22 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
     # register_dataset(broadest_sample)
 
     # calculate the clip intensity and statistic information(mean and variance)
-    clip_min_intensity, clip_max_intensity, mean, variance = intensity_statistic(dict(intensities_counter))
+    # clip_min_intensity, clip_max_intensity, mean, variance = intensity_statistic(dict(intensities_counter))
+    clip_min_intensity = -958
+    clip_max_intensity = 327
+    mean = 82.92
+    std_variance = 136.97
 
     # step 3: clip and normalize intensity
-    intensity_clip_norm(clip_min_intensity, clip_max_intensity, mean, variance)
+    intensity_clip_norm(clip_min_intensity, clip_max_intensity, mean, std_variance)
 
     # record data set infomation
     dataset_info["median_spacing"] = median_spacing
-    dataset_info["broadest_sample"] = broadest_sample
+    # dataset_info["broadest_sample"] = broadest_sample
     dataset_info["clip_min_intensity"] = clip_min_intensity
     dataset_info["clip_max_intensity"] = clip_max_intensity
     dataset_info["mean"] = mean
-    dataset_info["variance"] = variance
+    dataset_info["std_variance"] = std_variance
     with open(dataset_info_file, "w") as f:
         json.dump(dataset_info, f)
 
