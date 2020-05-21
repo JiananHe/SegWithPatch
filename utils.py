@@ -16,6 +16,7 @@ num_steps_for_backward = 6  # how many training steps between two backward?
 num_patches_volume = 2
 num_volumes_batch = 2
 
+padding_size = np.array([20, 40, 40])
 patch_size = np.array([48, 128, 128])
 crop_size = np.array([i * 3 / 2 for i in patch_size], dtype=np.int)
 

@@ -4,6 +4,9 @@ import json
 import shutil
 from skimage.transform import resize
 from batchgenerators.utilities.file_and_folder_operations import *
+
+import sys 
+sys.path.append("../../") 
 from utils import *
 
 
@@ -14,6 +17,9 @@ def check_path():
     paths_for_check = [os.path.join(preprocessed_save_path, "img"), os.path.join(preprocessed_save_path, "label")]
     for path in paths_for_check:
         if not os.path.exists(path):
+            os.makedirs(path)
+        else:
+            shutil.rmtree(path)
             os.makedirs(path)
 
 
@@ -87,19 +93,19 @@ def crop_roi(image, label):
     s = image.shape
 
     z_min = np.min(np.where(label != 0)[0])
-    # z_min = z_min - crop_size[0] // 2 if z_min - crop_size[0] // 2 > 0 else 0
+    z_min = z_min - padding_size[0] // 2 if z_min - padding_size[0] // 2 > 0 else 0
     z_max = np.max(np.where(label != 0)[0]) + 1
-    # z_max = z_max + crop_size[0] // 2 if z_max + crop_size[0] // 2 < s[0] else s[0]
+    z_max = z_max + padding_size[0] // 2 if z_max + padding_size[0] // 2 < s[0] else s[0]
 
     x_min = np.min(np.where(label != 0)[1])
-    # x_min = x_min - crop_size[1] // 2 if x_min - crop_size[1] // 2 > 0 else 0
+    x_min = x_min - padding_size[1] // 2 if x_min - padding_size[1] // 2 > 0 else 0
     x_max = np.max(np.where(label != 0)[1]) + 1
-    # x_max = x_max + crop_size[1] // 2 if x_max + crop_size[1] // 2 < s[1] else s[1]
+    x_max = x_max + padding_size[1] // 2 if x_max + padding_size[1] // 2 < s[1] else s[1]
 
     y_min = np.min(np.where(label != 0)[2])
-    # y_min = y_min - crop_size[2] // 2 if y_min - crop_size[2] // 2 > 0 else 0
+    y_min = y_min - padding_size[2] // 2 if y_min - padding_size[2] // 2 > 0 else 0
     y_max = np.max(np.where(label != 0)[2]) + 1
-    # y_max = y_max + crop_size[2] // 2 if y_max + crop_size[2] // 2 < s[2] else s[2]
+    y_max = y_max + padding_size[2] // 2 if y_max + padding_size[2] // 2 < s[2] else s[2]
 
     image_cropped = image[z_min:z_max, x_min:x_max, y_min:y_max]
     label_cropped = label[z_min:z_max, x_min:x_max, y_min:y_max]
@@ -331,8 +337,7 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
         print(dataset_info)
         return
     else:
-        shutil.rmtree(os.path.join(preprocessed_save_path, "img"))
-        shutil.rmtree(os.path.join(preprocessed_save_path, "label"))
+        check_path()
 
     # check paths and names of labels and images
     check_path()
@@ -407,7 +412,7 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
 
         save_volume(image_cropped, [median_spacing, image_vol.GetDirection(), image_vol.GetOrigin()], image_save_path)
         save_volume(label_cropped, [median_spacing, image_vol.GetDirection(), image_vol.GetOrigin()], label_save_path)
-        np.save(label_save_path.replace("nii.gz", "npy"), label_resampled)
+        np.save(label_save_path.replace("nii.gz", "npy"), label_cropped)
 
         samples_infos.append([image_save_path.replace("nii.gz", "npy"), label_save_path.replace("nii.gz", "npy"),
                               raw_image_spacing, image_resampled.shape, crop_coord, image_cropped.shape])
@@ -442,7 +447,7 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
 
 
 if __name__ == "__main__":
-    raw_path = r"D:\Projects\OrgansSegment\BTCV\RawData\Training"
+    raw_path = "/home/hja/Projects/OrgansSegment/BTCA/RawData/Training"
     raw_img_path = os.path.join(raw_path, "img")
     raw_lbl_path = os.path.join(raw_path, "label")
 

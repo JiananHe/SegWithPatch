@@ -1,13 +1,16 @@
 from batchgenerators.dataloading import MultiThreadedAugmenter, SlimDataLoaderBase
 from batchgenerators.transforms.spatial_transforms import SpatialTransform_2, MirrorTransform
-from batchgenerators.transforms.color_transforms import BrightnessMultiplicativeTransform, GammaTransform
+from batchgenerators.transforms.color_transforms import BrightnessMultiplicativeTransform, GammaTransform, ContrastAugmentationTransform
 from batchgenerators.transforms.noise_transforms import GaussianNoiseTransform, GaussianBlurTransform
+from batchgenerators.transforms.resample_transforms import SimulateLowResolutionTransform
 from batchgenerators.transforms import Compose
 import numpy as np
 import csv
 import json
+
+import sys
+sys.path.append("../")
 from utils import *
-from time import sleep
 
 
 class MyDataloader(SlimDataLoaderBase):
@@ -45,6 +48,7 @@ class MyDataloader(SlimDataLoaderBase):
         data_patches = []
         seg_patches = []
         images_idx = []
+        batch_class_ids = []
         for i in range(num_volumes_batch):
             selected_ids = np.random.choice(range(len(self._data)), 1)[0]
             selected_samples = self._data[selected_ids]
@@ -58,12 +62,13 @@ class MyDataloader(SlimDataLoaderBase):
                 data_patches.append(data_patch[None])
                 seg_patches.append(seg_patch[None])
                 images_idx.append(selected_samples[0].split("\\")[-1])
-
+                
+                batch_class_ids += contained_ids
                 for id in contained_ids:
                     MyDataloader.current_counts[id - 1] += 1
         data_patches = np.array(data_patches).astype(np.float32)
         seg_patches = np.array(seg_patches).astype(np.float32)
-        return {'data': data_patches, 'seg': seg_patches, 'images_idx': images_idx}
+        return {'data': data_patches, 'seg': seg_patches, 'images_idx': images_idx, 'batch_class_ids':batch_class_ids}
 
     def crop_patch(self, image, label, class_id):
         """
@@ -75,6 +80,7 @@ class MyDataloader(SlimDataLoaderBase):
         :return: image patch, label patch, the ids of organs witch covering at least 10% pixels in the sampled patch
         """
         shape = image.shape
+        assert image.shape == label.shape
         # find a point as the centre of patch
         class_points = np.argwhere(label == class_id)
         # class_points = list(filter(lambda point:
@@ -117,42 +123,44 @@ def get_train_transform():
     # Here we use the new SpatialTransform_2 which uses a new way of parameterizing elastic_deform
     # We use all spatial transformations with a probability of 0.2 per sample. This means that 1 - (1 - 0.1) ** 3 = 27%
     # of samples will be augmented, the rest will just be cropped
-    tr_transforms.append(
-        SpatialTransform_2(
-            patch_size, 0,
-            do_elastic_deform=True, deformation_scale=(0.25, 0.5),
-            do_rotation=False,
-            angle_x=(- 15 / 360. * 2 * np.pi, 15 / 360. * 2 * np.pi),
-            angle_y=(- 15 / 360. * 2 * np.pi, 15 / 360. * 2 * np.pi),
-            angle_z=(- 15 / 360. * 2 * np.pi, 15 / 360. * 2 * np.pi),
-            do_scale=False, scale=(0.75, 1.25),
-            border_mode_data='constant', border_cval_data=0,
-            border_mode_seg='constant', border_cval_seg=0,
-            order_seg=1, order_data=3,
-            random_crop=False,
-            p_el_per_sample=1, p_rot_per_sample=0.1, p_scale_per_sample=0.1
-        )
-    )
+#     tr_transforms.append(
+#         SpatialTransform_2(
+#             patch_size, 0,
+#             do_elastic_deform=False, deformation_scale=(0.25, 0.5),
+#             do_rotation=False,
+#             angle_x=(- 15 / 360. * 2 * np.pi, 15 / 360. * 2 * np.pi),
+#             angle_y=(- 15 / 360. * 2 * np.pi, 15 / 360. * 2 * np.pi),
+#             angle_z=(- 15 / 360. * 2 * np.pi, 15 / 360. * 2 * np.pi),
+#             do_scale=False, scale=(0.75, 1.25),
+#             border_mode_data='constant', border_cval_data=0,
+#             border_mode_seg='constant', border_cval_seg=0,
+#             order_seg=1, order_data=3,
+#             random_crop=False,
+#             p_el_per_sample=0, p_rot_per_sample=0.1, p_scale_per_sample=0.1
+#         )
+#     )
 
     # now we mirror along all axes
-    # tr_transforms.append(MirrorTransform(axes=(0, 1, 2)))
-    #
-    # # brightness transform for 15% of samples
-    # tr_transforms.append(BrightnessMultiplicativeTransform((0.7, 1.5), per_channel=True, p_per_sample=0.15))
-    #
-    # # gamma transform. This is a nonlinear transformation of intensity values
-    # # (https://en.wikipedia.org/wiki/Gamma_correction)
-    # tr_transforms.append(GammaTransform(gamma_range=(0.5, 2), invert_image=False, per_channel=True, p_per_sample=0.15))
-    # # we can also invert the image, apply the transform and then invert back
-    # tr_transforms.append(GammaTransform(gamma_range=(0.5, 2), invert_image=True, per_channel=True, p_per_sample=0.15))
-    #
-    # # Gaussian Noise
-    # tr_transforms.append(GaussianNoiseTransform(noise_variance=(0, 0.05), p_per_sample=0.15))
-    #
-    # # blurring. Some BraTS cases have very blurry modalities. This can simulate more patients with this problem and
-    # # thus make the model more robust to it
-    # tr_transforms.append(GaussianBlurTransform(blur_sigma=(0.5, 1.5), different_sigma_per_channel=True,
-    #                                            p_per_channel=0.5, p_per_sample=0.15))
+    tr_transforms.append(MirrorTransform(axes=(0, 1, 2)))
+    
+    # gamma transform. This is a nonlinear transformation of intensity values
+    # (https://en.wikipedia.org/wiki/Gamma_correction)
+    tr_transforms.append(GammaTransform(gamma_range=(0.7, 1.5), invert_image=False, per_channel=True, p_per_sample=0.15))
+    # we can also invert the image, apply the transform and then invert back
+    tr_transforms.append(GammaTransform(gamma_range=(0.7, 1.5), invert_image=True, per_channel=True, p_per_sample=0.15))
+    
+    tr_transforms.append(SimulateLowResolutionTransform(zoom_range=(0.5, 1), per_channel=True,
+                                                     p_per_channel=0.5,
+                                                     order_downsample=0, order_upsample=3, p_per_sample=0.25,
+                                                     ignore_axes=(0,)))
+    
+    tr_transforms.append(ContrastAugmentationTransform(contrast_range=(0.65, 1.5), p_per_sample=0.15))
+    tr_transforms.append(BrightnessMultiplicativeTransform(multiplier_range=(0.70, 1.3), p_per_sample=0.15))
+    
+    tr_transforms.append(GaussianBlurTransform((0.5, 1.5), different_sigma_per_channel=True, p_per_sample=0.2,
+                                               p_per_channel=0.5))
+    tr_transforms.append(GaussianNoiseTransform(p_per_sample=0.15))
+
 
     # now we compose these transforms together
     tr_transforms = Compose(tr_transforms)
@@ -160,7 +168,8 @@ def get_train_transform():
 
 
 if __name__ == "__main__":
-    cw = [1] * len(class_weight)
+#     cw = [1] * len(class_weight)
+    cw = organs_properties['organs_weight']
     cw = cw / np.sum(cw)
 
     dl = MyDataloader(True, 0, cw)
@@ -172,7 +181,7 @@ if __name__ == "__main__":
     save_id = 0
     median_spacing = dataset_info['median_spacing']
     for i, batch in enumerate(ml):
-        print(i, batch['data'].shape, batch['seg'].shape, batch['images_idx'])
+        print(i, batch['data'].shape, batch['seg'].shape, batch['images_idx'], batch['batch_class_ids'])
         bs = batch['data'].shape[0]
         batches.append(batch['seg'])
 
@@ -192,7 +201,4 @@ if __name__ == "__main__":
         # dl.set_current_counts(current_counts)
         # print(dl.get_cur())
 
-    batches = np.array(batches)
-    for i in range(13):
-        print(np.sum(batches == i))
 
