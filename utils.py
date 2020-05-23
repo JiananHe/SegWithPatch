@@ -36,6 +36,10 @@ organs_properties = {'organs_name': ['spleen', 'rkidny', 'lkidney', 'gallbladder
 #                                      11: 9410.111111111111, 14: 11118.544444444444},
 #                      'num_organ': 8}
 
+network_configure = {'kernel_sizes': [[1, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3]],
+                     'features_channels': [32, 64, 128, 256, 320],
+                     'down_strides': [[1, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2]]}
+
 class_weight = np.array(organs_properties["organs_weight"])
 class_weight = class_weight / np.sum(class_weight)
 current_counts = np.zeros(len(class_weight))
@@ -43,6 +47,17 @@ current_counts = np.zeros(len(class_weight))
 organs_name = organs_properties['organs_name']
 num_organ = organs_properties['num_organ']
 organs_size = organs_properties['organs_size']
+
+
+def sum_tensor(inp, axes, keepdim=False):
+    axes = np.unique(axes).astype(int)
+    if keepdim:
+        for ax in axes:
+            inp = inp.sum(int(ax), keepdim=True)
+    else:
+        for ax in sorted(axes, reverse=True):
+            inp = inp.sum(int(ax))
+    return inp
 
 
 def setup_seed(seed):

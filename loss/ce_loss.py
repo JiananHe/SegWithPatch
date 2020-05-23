@@ -2,21 +2,27 @@ import torch
 import torch.nn as nn
 import numpy as np
 from utils import organs_properties
+from utils import sum_tensor
 
 
 class CELoss(nn.Module):
-    def __init__(self):
+    def __init__(self, class_weight):
         super().__init__()
+        self.weight = torch.tensor(class_weight).cuda().float()
+        self.loss = nn.CrossEntropyLoss(weight=self.weight, reduction="none")
 
-        self.loss = nn.CrossEntropyLoss()
-
-    def forward(self, output, target):
+    def forward(self, output, target, batch_weight):
         """
-        :param output: (B, 14, 64, 64, 64)
+        :param output: (B, 14, 64, 64, 64)原始网络输出，没有经过正则化
         :param target: (B, 64, 64, 64)
         """
-        return self.loss(output, target)
+        batch_weight = torch.tensor(batch_weight).cuda(output.device.index).float()
+        assert len(self.weight) == output.shape[1]
+        ce_loss = self.loss(output, target)  # (N, z, x, y)
+        ce_loss = ce_loss.mean(dim=[1, 2, 3])
 
+        ce_loss = ce_loss * batch_weight
+        return ce_loss.mean()
 
 
 if __name__ == "__main__":
