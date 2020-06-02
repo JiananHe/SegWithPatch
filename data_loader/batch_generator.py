@@ -42,19 +42,17 @@ class MyDataloader(SlimDataLoaderBase):
         self.num_class = len(class_weight)
         self.current_position = 0
         self.was_initialized = False
-        self.stop_iteration = 0
 
     def reset(self):
         self.current_position = self.thread_id
         self.was_initialized = True
-        self.stop_iteration = iteration_every_epoch - (data_loader_processes - self.thread_id)
-        print("data loader thread id: %d, will stop before %d th iteration." % (self.thread_id, self.stop_iteration))
 
     def generate_train_batch(self):
         if not self.was_initialized:
             self.reset()
         self.current_position = self.current_position + self.number_of_threads_in_multithreaded
-        if self.current_position > self.stop_iteration:
+        if self.current_position > iteration_every_epoch + (self.number_of_threads_in_multithreaded - 1):
+            self.reset()
             raise StopIteration
 
         if np.sum(MyDataloader.current_counts) == 0:
