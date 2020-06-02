@@ -379,25 +379,26 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
         print(image_name, image_dtype)
         assert image_array.shape == label_array.shape, "the shapes of image and label in %s are different" % image_name
 
-        # step 1: resample to median spacing
+        # step 1: crop to roi
+        image_cropped, label_cropped, crop_coord = crop_roi(image_array, label_array)
+
+        # step 2: resample to median spacing
         raw_image_spacing = image_vol.GetSpacing()
-        raw_shape = image_array.shape
+        cropped_shape = image_cropped.shape
         new_shape = np.round((np.array([raw_image_spacing[2] / median_spacing[2],
                                         raw_image_spacing[0] / median_spacing[0],
-                                        raw_image_spacing[1] / median_spacing[1]]).astype(float) * raw_shape)).astype(int)
+                                        raw_image_spacing[1] / median_spacing[1]]).astype(float) * cropped_shape)).astype(int)
 
-        if np.any(new_shape != raw_shape):
-            image_resampled = image_resize(image_array, new_shape, order=3, is_anisotropic=True)
-            label_resampled = image_resize(label_array, new_shape, order=0, is_anisotropic=True)
+        if np.any(new_shape != cropped_shape):
+            image_resampled = image_resize(image_cropped, new_shape, order=3, is_anisotropic=True)
+            label_resampled = image_resize(label_cropped, new_shape, order=0, is_anisotropic=True)
         else:
-            image_resampled = image_array
-            label_resampled = label_array
+            image_resampled = image_cropped
+            label_resampled = label_cropped
         assert image_resampled.shape == label_resampled.shape
-
-        # step 2: crop to roi
-        image_cropped, label_cropped, crop_coord = crop_roi(image_resampled, label_resampled)
-        image_cropped = image_cropped.astype(image_dtype)
-        label_cropped = label_cropped.astype(label_dtype)
+        image_resampled = image_resampled.astype(image_dtype)
+        label_resampled = label_resampled.astype(label_dtype)
+        print("new shape:", image_resampled.shape)
 
         # # statistic max shape
         # if broadest_sample_shape < np.product(image_cropped.shape):
@@ -410,9 +411,9 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
         image_save_path = os.path.abspath(os.path.join(preprocessed_save_path, "img", image_name))
         label_save_path = os.path.abspath(os.path.join(preprocessed_save_path, "label", match_lbl_name(image_name).replace("img", "label")))
 
-        save_volume(image_cropped, [median_spacing, image_vol.GetDirection(), image_vol.GetOrigin()], image_save_path)
-        save_volume(label_cropped, [median_spacing, image_vol.GetDirection(), image_vol.GetOrigin()], label_save_path)
-        np.save(label_save_path.replace("nii.gz", "npy"), label_cropped)
+        save_volume(image_resampled, [median_spacing, image_vol.GetDirection(), image_vol.GetOrigin()], image_save_path)
+        save_volume(label_resampled, [median_spacing, image_vol.GetDirection(), image_vol.GetOrigin()], label_save_path)
+        np.save(label_save_path.replace("nii.gz", "npy"), label_resampled)
 
         samples_infos.append([image_save_path.replace("nii.gz", "npy"), label_save_path.replace("nii.gz", "npy"),
                               raw_image_spacing, image_resampled.shape, crop_coord, image_cropped.shape])
