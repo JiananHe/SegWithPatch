@@ -17,10 +17,26 @@ num_steps_for_backward = 6  # how many training steps between two backward?
 # number of patches in a batch = num_patches_volume * num_volumes_batch
 num_patches_volume = 2
 num_volumes_batch = 2
+# validation batch size
+val_batch_size = 8
 
 padding_size = np.array([20, 40, 40])
 patch_size = np.array([48, 128, 128])
 crop_size = np.array([i * 3 / 2 for i in patch_size], dtype=np.int)
+
+resume_training = True
+os.environ['CUDA_VISIBLE_DEVICES'] = '1, 3'
+torch.backends.cudnn.benchmark = True
+Epoch = 1000
+iteration_every_epoch = 250
+# 梯度累计，即每grad_accum_steps次iteration更新一次网络参数
+grad_accum_steps = 2
+leaing_rate = 1e-2
+data_loader_processes = 3
+# the weight for the batch from pseudo labels
+batch_low_confidence_weight = 0.4
+
+
 
 # 器官属性
 organs_properties = {'organs_name': ['spleen', 'rkidny', 'lkidney', 'gallbladder', 'esophagus', 'liver', 'stomach',
@@ -30,25 +46,17 @@ organs_properties = {'organs_name': ['spleen', 'rkidny', 'lkidney', 'gallbladder
                      'organs_weight': [1.0, 1.0, 2.0, 2.0, 2.0, 1.0, 3.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0],
                      'num_organ': 13,
                      'sample_path': r'D:\Projects\OrgansSegment\SegWithPatch\samples\Training'}
-# organs_properties = {'organs_index': [1, 3, 4, 5, 6, 7, 11, 14],
-#                      'organs_name': ['spleen', 'left kidney', 'gallbladder', 'esophagus',
-#                                      'liver', 'stomach', 'pancreas', 'duodenum'],
-#                      'organs_size': {1: 33969.37777777778, 3: 21083.43820224719, 4: 3348.8214285714284,
-#                                      5: 1916.685393258427, 6: 208806.8777777778, 7: 50836.01111111111,
-#                                      11: 9410.111111111111, 14: 11118.544444444444},
-#                      'num_organ': 8}
+
+organs_name = organs_properties['organs_name']
+num_organ = organs_properties['num_organ']
+organs_size = organs_properties['organs_size']
+class_weight = np.array(organs_properties["organs_weight"])
+class_weight = class_weight / np.sum(class_weight)
 
 network_configure = {'kernel_sizes': [[1, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3]],
                      'features_channels': [32, 64, 128, 256, 320],
                      'down_strides': [[1, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2]]}
 
-class_weight = np.array(organs_properties["organs_weight"])
-class_weight = class_weight / np.sum(class_weight)
-current_counts = np.zeros(len(class_weight))
-
-organs_name = organs_properties['organs_name']
-num_organ = organs_properties['num_organ']
-organs_size = organs_properties['organs_size']
 
 
 def sum_tensor(inp, axes, keepdim=False):

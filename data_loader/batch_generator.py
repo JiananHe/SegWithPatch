@@ -16,7 +16,7 @@ from utils import *
 class MyDataloader(SlimDataLoaderBase):
     current_counts = np.zeros(organs_properties["num_organ"])
 
-    def __init__(self, is_train, folder, class_weight):
+    def __init__(self, class_weight):
         """
         data loader
         :param is_train: dataloader for training set or validation set
@@ -25,21 +25,38 @@ class MyDataloader(SlimDataLoaderBase):
         :param batch_size: int
         """
         super(MyDataloader, self).__init__(None, num_patches_volume * num_volumes_batch, None)
-        assert 0 <= folder <= 4, "only support 5-folder cross validation"
+        # assert 0 <= folder <= 4, "only support 5-folder cross validation"
 
         # load infos of data from training_samples_info.csv
         csv_reader = csv.reader(open(samples_info_file, 'r'))
         all_samples_info = [row for row in csv_reader][1:]
-        samples_every_folder = len(all_samples_info) // 5
-        if not is_train:
-            self._data = all_samples_info[folder * samples_every_folder: (folder + 1) * samples_every_folder]
-        else:
-            self._data = all_samples_info[:folder * samples_every_folder] + \
-                         all_samples_info[(folder + 1) * samples_every_folder:]
+        self._data = all_samples_info
+        # samples_every_folder = len(all_samples_info) // 5
+        # if not is_train:
+        #     self._data = all_samples_info[folder * samples_every_folder: (folder + 1) * samples_every_folder]
+        # else:
+        #     self._data = all_samples_info[:folder * samples_every_folder] + \
+        #                  all_samples_info[(folder + 1) * samples_every_folder:]
+
         self.class_weight = class_weight
         self.num_class = len(class_weight)
+        self.current_position = 0
+        self.was_initialized = False
+        self.stop_iteration = 0
+
+    def reset(self):
+        self.current_position = self.thread_id
+        self.was_initialized = True
+        self.stop_iteration = iteration_every_epoch - (data_loader_processes - self.thread_id)
+        print("data loader thread id: %d, will stop before %d th iteration." % (self.thread_id, self.stop_iteration))
 
     def generate_train_batch(self):
+        if not self.was_initialized:
+            self.reset()
+        self.current_position = self.current_position + self.number_of_threads_in_multithreaded
+        if self.current_position > self.stop_iteration:
+            raise StopIteration
+
         if np.sum(MyDataloader.current_counts) == 0:
             current_weight = np.zeros(len(self.class_weight))
         else:
@@ -47,7 +64,7 @@ class MyDataloader(SlimDataLoaderBase):
 
         data_patches = []
         seg_patches = []
-        images_idx = []
+        image_names = []
         batch_class_ids = []
         for i in range(num_volumes_batch):
             selected_ids = np.random.choice(range(len(self._data)), 1)[0]
@@ -61,14 +78,14 @@ class MyDataloader(SlimDataLoaderBase):
                 data_patch, seg_patch, contained_ids = self.crop_patch(image, segmentation, class_id)
                 data_patches.append(data_patch[None])
                 seg_patches.append(seg_patch[None])
-                images_idx.append(selected_samples[0].split("\\")[-1])
+                image_names.append(selected_samples[0].split("/")[-1])
                 
                 batch_class_ids += contained_ids
                 for id in contained_ids:
                     MyDataloader.current_counts[id - 1] += 1
         data_patches = np.array(data_patches).astype(np.float32)
         seg_patches = np.array(seg_patches).astype(np.float32)
-        return {'data': data_patches, 'seg': seg_patches, 'images_idx': images_idx, 'batch_class_ids':batch_class_ids}
+        return {'data': data_patches, 'seg': seg_patches, 'image_names': image_names, 'batch_class_ids': batch_class_ids}
 
     def crop_patch(self, image, label, class_id):
         """
@@ -167,21 +184,22 @@ def get_train_transform():
     return tr_transforms
 
 
-if __name__ == "__main__":
-#     cw = [1] * len(class_weight)
-    cw = organs_properties['organs_weight']
-    cw = cw / np.sum(cw)
-
-    dl = MyDataloader(True, 0, cw)
+def get_data_loader(class_weights, num_processes):
+    dl = MyDataloader(class_weights)
     trans = get_train_transform()
-    ml = MultiThreadedAugmenter(dl, trans, 3)
+
+    return MultiThreadedAugmenter(dl, trans, num_processes)
+
+
+if __name__ == "__main__":
+    ml = get_data_loader(class_weight, 3)
 
     batches = []
     dataset_info = json.load(open(dataset_info_file, 'r'))
     save_id = 0
     median_spacing = dataset_info['median_spacing']
     for i, batch in enumerate(ml):
-        print(i, batch['data'].shape, batch['seg'].shape, batch['images_idx'], batch['batch_class_ids'])
+        print(i, batch['data'].shape, batch['seg'].shape, batch['image_names'], batch['batch_class_ids'])
         bs = batch['data'].shape[0]
         batches.append(batch['seg'])
 
@@ -193,7 +211,6 @@ if __name__ == "__main__":
             sitk.WriteImage(img_vol, "img_%s.nii.gz" % save_id)
             sitk.WriteImage(lbl_vol, "lbl_%s.nii.gz" % save_id)
             save_id += 1
-
 
         if i == 239:
             break
