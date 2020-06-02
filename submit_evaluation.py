@@ -18,7 +18,7 @@ import os
 import sys
 import synapseclient
 from synapseclient import File
-from synapseclient.exceptions import SynapseHTTPError
+# from synapseclient.exceptions import SynapseHTTPError
 
 CERVIX_STD = [3556505,3556507,3556509,3556511]
 CERVIX_FREE = [3556513,3556515,3556517,3556519]
@@ -106,11 +106,11 @@ if __name__ == '__main__':
 
     # Login to synapse
     SYN = synapseclient.Synapse()
-    try:
-        SYN.login(ARGS.username, ARGS.password)
-    except SynapseHTTPError:
-        sys.exit('ERROR: Could not log in with credentials. '
-                 'Please check username and password')
+    # try:
+    SYN.login(ARGS.username, ARGS.password)
+    # except SynapseHTTPError:
+    #     sys.exit('ERROR: Could not log in with credentials. '
+    #              'Please check username and password')
 
     PARTICIPANT_FILE = SYN.store(File(ARGS.directory,
                                       parent=ID_DICT[ARGS.challenge]))
@@ -144,4 +144,4 @@ if __name__ == '__main__':
     # Log out
     SYN.logout()
 
-# python submit_evaluation.py -d prediction\test.zip --username JiananHe --password 151417dndx -t seu -c 3381219 -n 3dunet-dys
+# python submit_evaluation.py -d prediction\test.zip --username JAHe --password 151417dndx -t seu -c 3381219 -n 3dunet-dys

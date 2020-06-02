@@ -387,8 +387,8 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
                                         raw_image_spacing[1] / median_spacing[1]]).astype(float) * raw_shape)).astype(int)
 
         if np.any(new_shape != raw_shape):
-            image_resampled = resize(image_array, new_shape, order=3, preserve_range=True)
-            label_resampled = resize(label_array, new_shape, order=0, preserve_range=True, anti_aliasing=False)
+            image_resampled = image_resize(image_array, new_shape, order=3, is_anisotropic=True)
+            label_resampled = image_resize(label_array, new_shape, order=0, is_anisotropic=True)
         else:
             image_resampled = image_array
             label_resampled = label_array

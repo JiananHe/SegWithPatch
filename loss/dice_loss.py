@@ -73,21 +73,26 @@ def get_tp_fp_fn(net_output, gt, axes=None, mask=None, square=False):
 
 
 class DiceLoss(nn.Module):
-    def __init__(self, do_bg=True, smooth=1e-5):
+    def __init__(self, class_weight, do_bg=True, smooth=1e-5):
         """
         Copy form nnUnet
         """
         super(DiceLoss, self).__init__()
 
         self.do_bg = do_bg
+        self.class_weight = class_weight
         self.smooth = smooth
 
-    def forward(self, x, y, class_weight, batch_weight, loss_mask=None):
-        class_weight = torch.tensor(class_weight).cuda(x.device.index).float()
+    def forward(self, x, y, batch_weight, loss_mask=None):
+        assert len(self.class_weight) == x.shape[1]
+        assert isinstance(x, torch.Tensor)
+        if not isinstance(y, torch.Tensor):
+            y = torch.from_numpy(y).cuda(x.device.index).long()
+        class_weight = torch.tensor(self.class_weight).cuda(x.device.index).float()
         batch_weight = torch.tensor(batch_weight).cuda(x.device.index).float()
 
         shp_x = x.shape
-        axes = list(range(2, len(shp_x)))
+        axes = list(range(2, len(shp_x)))  # (2, 3, 4)
 
         # softmax
         x = F.softmax(x, dim=1)
@@ -109,3 +114,16 @@ class DiceLoss(nn.Module):
         dc = dc.mean()
 
         return -dc
+
+
+if __name__ == "__main__":
+    batch_size = 2
+    class_num = 3
+    loss_func = DiceLoss([1.0, 2.0, 3.0])
+    ct = torch.randn((batch_size, class_num, 5, 5)).cuda()
+    seg = torch.randint(0, class_num, (batch_size, 5, 5)).cuda()
+    # print(ct.numpy())
+    # print(seg.numpy())
+
+    # pytorch
+    print(loss_func(ct, seg, [1] * 2))

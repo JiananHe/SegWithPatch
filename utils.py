@@ -4,6 +4,8 @@ from skimage import measure
 import random
 import os
 import SimpleITK as sitk
+from skimage.transform import resize
+from scipy.ndimage.interpolation import map_coordinates
 
 
 project_root_path = os.path.abspath(os.path.dirname(__file__))
@@ -141,7 +143,40 @@ def read_nii(path, type=None):
         return sitk.ReadImage(path, type)
 
 
+def image_resize(old_image, new_shape, order, is_anisotropic):
+    is_single_image = False
+    if len(old_image.shape) == 3:  # (B, D, W, H)
+        old_image = old_image[None]
+        is_single_image = True
+
+    old_type = old_image.dtype
+    batch_size = old_image.shape[0]
+    resized_image = np.zeros((batch_size, *new_shape), old_image.dtype)
+
+    for b, img in enumerate(old_image):
+        if not is_anisotropic:
+            resized_image[b] = resize(img.astype(float), new_shape, order=order, preserve_range=True).astype(old_type)
+        else:
+            temp_image = np.zeros((img.shape[0], *new_shape[1:]))
+            for i, slice in enumerate(img):
+                temp_image[i] = resize(slice.astype(float), new_shape[1:], order=order, preserve_range=True)
+
+            if old_image.shape[0] == new_shape[0]:
+                resized_image[b] = temp_image.astype(old_type)
+            else:
+                scale = float(old_image.shape[0]) / new_shape[0]
+                map_deps, map_rows, map_cols = np.mgrid[:new_shape[0], :new_shape[1], :new_shape[2]]
+                map_deps = scale * (map_deps + 0.5) - 0.5
+                coord_map = np.array([map_deps, map_rows, map_cols])
+                resized_image[b] = map_coordinates(temp_image, coord_map, order=0, mode='nearest').astype(old_type)
+    if is_single_image:
+        return resized_image[0]
+    else:
+        return resized_image
+
+
 if __name__ == "__main__":
-    a = torch.randint(1, 10, (6, 9, 48, 256, 256))
-    b = torch.randint(1, 10, (6, 48, 256, 256))
+    a = np.random.randint(1, 10, (2, 48, 256, 256)).astype(np.long)
+    resized_a = image_resize(a, (32, 200, 200), 0, is_anisotropic=True)
+    print(resized_a.shape, resized_a.dtype)
 

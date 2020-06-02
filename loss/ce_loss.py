@@ -8,8 +8,8 @@ from utils import sum_tensor
 class CELoss(nn.Module):
     def __init__(self, class_weight):
         super().__init__()
-        self.weight = torch.tensor(class_weight).cuda().float()
-        self.loss = nn.CrossEntropyLoss(weight=self.weight, reduction="none")
+        self.class_weight = torch.tensor(class_weight).cuda().float()
+        self.loss = nn.CrossEntropyLoss(weight=self.class_weight, reduction="none")
 
     def forward(self, output, target, batch_weight):
         """
@@ -17,23 +17,30 @@ class CELoss(nn.Module):
         :param target: (B, 64, 64, 64)
         """
         batch_weight = torch.tensor(batch_weight).cuda(output.device.index).float()
-        assert len(self.weight) == output.shape[1]
+        assert isinstance(output, torch.Tensor)
+        assert len(self.class_weight) == output.shape[1]
+        if not isinstance(target, torch.Tensor):
+            target = torch.from_numpy(target).cuda(output.device.index).long()
+
         ce_loss = self.loss(output, target)  # (N, z, x, y)
-        ce_loss = ce_loss.mean(dim=[1, 2, 3])
+        mean_axes = list(range(1, len(ce_loss.shape)))
+        ce_loss = ce_loss.mean(dim=mean_axes)
 
         ce_loss = ce_loss * batch_weight
         return ce_loss.mean()
 
 
 if __name__ == "__main__":
-    loss_func = CELoss()
-    ct = torch.randn((1, 3, 2))
-    seg = torch.randint(0, 3, (1, 2))
-    print(ct.numpy())
-    print(seg.numpy())
+    batch_size = 2
+    class_num = 3
+    loss_func = CELoss([1.0, 2.0, 3.0])
+    out = torch.randn((batch_size, class_num, 5, 5)).cuda()
+    seg = torch.randint(0, class_num, (batch_size, 5, 5)).cuda()
+    # print(ct.numpy())
+    # print(seg.numpy())
 
-    # # pytorch
-    # print(loss_func(ct, seg))
+    # pytorch
+    print(loss_func(out, seg, [1] * 2))
     # # numpy
     # loss = .0
     # ct = ct.numpy()

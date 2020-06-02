@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from loss.dice_loss import DiceLoss
 from loss.ce_loss import CELoss
+from loss.dice_ce_loss import DC_and_CE_loss
 import torchvision
 import numpy as np
 import sys
@@ -124,9 +125,8 @@ if __name__ == "__main__":
     # summary(net, (1, 48, 256, 256))
 
     ct = torch.randn((2, 1, 48, 128, 128)).cuda()
-    seg = torch.randint(0, 13, (2, 48, 128, 128)).cuda()
-    dice_loss_func = DiceLoss()
-    ce_loss_func = CELoss( [1.0]*(num_organ+1))
+    seg = np.random.randint(0, 13, (2, 48, 128, 128))
+    loss_func = DC_and_CE_loss([1.0]*(num_organ+1))
 
     with torch.no_grad():
         out = net(ct)
@@ -136,10 +136,9 @@ if __name__ == "__main__":
         print(out[0].cpu().detach().numpy().shape)
         print(out[1].cpu().detach().numpy().shape)
 
-        loss = dice_loss_func(out[1], seg, [1.0]*(num_organ+1), [1.0, 0.5])
+        loss = loss_func(out, seg, [1.0, 0.5])
         print(loss.item())
-        loss1 = ce_loss_func(out[1], seg, [1.0, 0.5])
-        print(loss1.item())
+
 
 
     # 计算参数个数
