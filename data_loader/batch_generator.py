@@ -16,7 +16,7 @@ from utils import *
 class MyDataloader(SlimDataLoaderBase):
     current_counts = np.zeros(organs_properties["num_organ"])
 
-    def __init__(self, class_weight):
+    def __init__(self, class_weight, num_threads_in_mt):
         """
         data loader
         :param is_train: dataloader for training set or validation set
@@ -24,7 +24,7 @@ class MyDataloader(SlimDataLoaderBase):
         :param patch_size: a tuple
         :param batch_size: int
         """
-        super(MyDataloader, self).__init__(None, num_patches_volume * num_volumes_batch, None)
+        super(MyDataloader, self).__init__(None, num_patches_volume * num_volumes_batch, num_threads_in_mt)
         # assert 0 <= folder <= 4, "only support 5-folder cross validation"
 
         # load infos of data from training_samples_info.csv
@@ -185,10 +185,10 @@ def get_train_transform():
 
 
 def get_data_loader(class_weights, num_processes):
-    dl = MyDataloader(class_weights)
+    dl = MyDataloader(class_weights, num_processes)
     trans = get_train_transform()
 
-    return MultiThreadedAugmenter(dl, trans, num_processes)
+    return MultiThreadedAugmenter(dl, trans, num_processes, num_cached_per_queue=1)
 
 
 if __name__ == "__main__":
