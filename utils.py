@@ -161,10 +161,10 @@ def image_resize(old_image, new_shape, order, is_anisotropic):
             for i, slice in enumerate(img):
                 temp_image[i] = resize(slice.astype(float), new_shape[1:], order=order, preserve_range=True)
 
-            if old_image.shape[0] == new_shape[0]:
+            if img.shape[0] == new_shape[0]:
                 resized_image[b] = temp_image.astype(old_type)
             else:
-                scale = float(old_image.shape[0]) / new_shape[0]
+                scale = float(img.shape[0]) / new_shape[0]
                 map_deps, map_rows, map_cols = np.mgrid[:new_shape[0], :new_shape[1], :new_shape[2]]
                 map_deps = scale * (map_deps + 0.5) - 0.5
                 coord_map = np.array([map_deps, map_rows, map_cols])

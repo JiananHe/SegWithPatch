@@ -412,7 +412,7 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
         label_save_path = os.path.abspath(os.path.join(preprocessed_save_path, "label", match_lbl_name(image_name).replace("img", "label")))
 
         save_volume(image_resampled, [median_spacing, image_vol.GetDirection(), image_vol.GetOrigin()], image_save_path)
-        save_volume(label_resampled, [median_spacing, image_vol.GetDirection(), image_vol.GetOrigin()], label_save_path)
+        save_volume(label_resampled, [median_spacing, label_vol.GetDirection(), label_vol.GetOrigin()], label_save_path)
         np.save(label_save_path.replace("nii.gz", "npy"), label_resampled)
 
         samples_infos.append([image_save_path.replace("nii.gz", "npy"), label_save_path.replace("nii.gz", "npy"),
