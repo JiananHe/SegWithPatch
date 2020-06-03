@@ -3,12 +3,14 @@ import numpy as np
 from skimage import measure
 import random
 import os
+import csv
 import SimpleITK as sitk
 from skimage.transform import resize
+from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage.interpolation import map_coordinates
 
-
 project_root_path = os.path.abspath(os.path.dirname(__file__))
+raw_path = "/home/hja/Projects/OrgansSegment/BTCA/RawData/Training"
 preprocessed_save_path = os.path.join(project_root_path, "samples/BTCV/Training")
 samples_info_file = os.path.join(project_root_path, "info_files/training_samples_info.csv")
 dataset_info_file = os.path.join(project_root_path, "info_files/trainset_info.json")
@@ -24,19 +26,19 @@ padding_size = np.array([20, 40, 40])
 patch_size = np.array([48, 128, 128])
 crop_size = np.array([i * 3 / 2 for i in patch_size], dtype=np.int)
 
-resume_training = True
+resume_training = False
+module_dir = './module/td_unet80-0.668-0.601.pth'
+
 os.environ['CUDA_VISIBLE_DEVICES'] = '1, 3'
 torch.backends.cudnn.benchmark = True
 Epoch = 1000
-iteration_every_epoch = 250
+iteration_every_epoch = 25
 # 梯度累计，即每grad_accum_steps次iteration更新一次网络参数
 grad_accum_steps = 2
-leaing_rate = 1e-2
+inital_learning_rate = 1e-2
 data_loader_processes = 3
 # the weight for the batch from pseudo labels
-batch_low_confidence_weight = 0.4
-
-
+batch_low_confidence_weight = 0.2
 
 # 器官属性
 organs_properties = {'organs_name': ['spleen', 'rkidny', 'lkidney', 'gallbladder', 'esophagus', 'liver', 'stomach',
@@ -50,13 +52,13 @@ organs_properties = {'organs_name': ['spleen', 'rkidny', 'lkidney', 'gallbladder
 organs_name = organs_properties['organs_name']
 num_organ = organs_properties['num_organ']
 organs_size = organs_properties['organs_size']
-class_weight = np.array(organs_properties["organs_weight"])
+classes_name = ["bg"] + organs_name
+class_weight = np.array([1] + organs_properties["organs_weight"])
 class_weight = class_weight / np.sum(class_weight)
 
 network_configure = {'kernel_sizes': [[1, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3]],
                      'features_channels': [32, 64, 128, 256, 320],
                      'down_strides': [[1, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2]]}
-
 
 
 def sum_tensor(inp, axes, keepdim=False):
@@ -80,21 +82,23 @@ def setup_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 
-def calc_weight_matrix(sample_size):
-    median = sample_size / 2 - 0.5
+def calc_weight_matrix(ps, sigma_scale=1. / 8):
+    tmp = np.zeros(ps)
+    center_coords = [i // 2 for i in ps]
+    sigmas = [i * sigma_scale for i in ps]
+    tmp[tuple(center_coords)] = 1
+    gaussian_importance_map = gaussian_filter(tmp, sigmas, 0, mode='constant', cval=0)
+    gaussian_importance_map = gaussian_importance_map / np.max(gaussian_importance_map) * 1
+    gaussian_importance_map = gaussian_importance_map.astype(np.float32)
 
-    distance_matrix = np.zeros((sample_size, sample_size, sample_size), dtype=np.float)
-    for i in range(sample_size):
-        for j in range(sample_size):
-            for k in range(sample_size):
-                distance_matrix[i, j, k] = int(abs(i - median)) + \
-                                           int(abs(j - median)) + \
-                                           int(abs(k - median)) + 1
+    # gaussian_importance_map cannot be 0, otherwise we may end up with nans!
+    gaussian_importance_map[gaussian_importance_map == 0] = np.min(
+        gaussian_importance_map[gaussian_importance_map != 0])
 
-    pair_sum = np.max(distance_matrix) + np.min(distance_matrix)  # sum of distance of every pair
-    total_sum = pair_sum * 4  # 4 pairs
-    weight_matrix = (pair_sum - distance_matrix) / total_sum
-    return weight_matrix
+    return gaussian_importance_map
+
+
+weight_matrix = calc_weight_matrix(patch_size)
 
 
 def post_process(input):
@@ -104,8 +108,8 @@ def post_process(input):
     :return: （D, W, H）
     """
     s = input.shape
-    output = np.zeros((num_organ+1, s[0], s[1], s[2]))
-    for id in range(1, num_organ+1):
+    output = np.zeros((num_organ + 1, s[0], s[1], s[2]))
+    for id in range(1, num_organ + 1):
         org_seg = (input == id) + .0
         if (org_seg == .0).all():
             continue
@@ -183,8 +187,82 @@ def image_resize(old_image, new_shape, order, is_anisotropic):
         return resized_image
 
 
-if __name__ == "__main__":
-    a = np.random.randint(1, 10, (2, 48, 256, 256)).astype(np.long)
-    resized_a = image_resize(a, (32, 200, 200), 0, is_anisotropic=True)
-    print(resized_a.shape, resized_a.dtype)
+# 根据training_samples_info.csv划分训练集与验证集
+def split_train_val():
+    val_amount = 6  # 验证集case数量
+    csv_reader = csv.reader(open(samples_info_file, 'r'))
+    all_samples_info = [row for row in csv_reader][1:]
+    train_samples_info = []
+    train_samples_name = []
+    val_samples_info = []
+    val_samples_name = []
+    for info in all_samples_info:
+        name = info[0].split("/")[-1]
+        if int(name[5:7]) > 60:
+            train_samples_info.append(info)
+            train_samples_name.append(name)
+        else:
+            if len(val_samples_info) < 6:
+                val_samples_info.append(info)
+                val_samples_name.append(name)
+            else:
+                train_samples_info.append(info)
+                train_samples_name.append(name)
 
+    return train_samples_info, train_samples_name, val_samples_info, val_samples_name
+
+
+def compute_steps_for_sliding_window(patch_size, image_size, step_size=0.5):
+    assert [i >= j for i, j in zip(image_size, patch_size)], "image size must be as large or larger than patch_size"
+    assert 0 < step_size <= 1, 'step_size must be larger than 0 and smaller or equal to 1'
+
+    # our step width is patch_size*step_size at most, but can be narrower. For example if we have image size of
+    # 110, patch size of 32 and step_size of 0.5, then we want to make 4 steps starting at coordinate 0, 27, 55, 78
+    target_step_sizes_in_voxels = [i * step_size for i in patch_size]
+
+    num_steps = [int(np.ceil((i - k) / j)) + 1 for i, j, k in zip(image_size, target_step_sizes_in_voxels, patch_size)]
+
+    steps = []
+    for dim in range(len(patch_size)):
+        # the highest step value for this dimension is
+        max_step_value = image_size[dim] - patch_size[dim]
+        if num_steps[dim] > 1:
+            actual_step_size = max_step_value / (num_steps[dim] - 1)
+        else:
+            actual_step_size = 99999999999  # does not matter because there is only one step at 0
+
+        steps_here = [int(np.round(actual_step_size * i)) for i in range(num_steps[dim])]
+
+        steps.append(steps_here)
+
+    return steps
+
+
+if __name__ == "__main__":
+    # a = np.random.randint(1, 10, (2, 48, 256, 256)).astype(np.long)
+    # resized_a = image_resize(a, (32, 200, 200), 0, is_anisotropic=True)
+    # print(resized_a.shape, resized_a.dtype)
+
+    # wm = calc_weight_matrix(patch_size)
+    # print(patch_size)
+    # print(wm.shape)
+    # print(np.max(wm), np.min(wm))
+    # center_coords = [i // 2 for i in patch_size]
+    # print(center_coords)
+    # print("center coord: ", wm[tuple(center_coords)])
+    # print(wm[center_coords[0] - 5, center_coords[1] + 20, center_coords[2] - 30])
+    # print(wm[center_coords[0] + 5, center_coords[1] - 20, center_coords[2] + 30])
+    # print(wm[0, 0, 0])
+    # print(wm[patch_size[0] - 1, patch_size[1] - 1, patch_size[2] - 1])
+    # # print(wm)
+    # train_samples_info, train_samples_name, _, _ = split_train_val()
+    # print(train_samples_name)
+    # for i in train_samples_info:
+    #     print(i)
+    #
+    # _, _, val_samples_info, val_samples_name= split_train_val()
+    # print(val_samples_name)
+    # for i in val_samples_info:
+    #     print(i)
+
+    print(compute_steps_for_sliding_window(patch_size, (58, 221, 351)))

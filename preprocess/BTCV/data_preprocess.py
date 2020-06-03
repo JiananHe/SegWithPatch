@@ -448,7 +448,6 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
 
 
 if __name__ == "__main__":
-    raw_path = "/home/hja/Projects/OrgansSegment/BTCA/RawData/Training"
     raw_img_path = os.path.join(raw_path, "img")
     raw_lbl_path = os.path.join(raw_path, "label")
 

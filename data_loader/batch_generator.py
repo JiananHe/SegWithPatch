@@ -28,15 +28,9 @@ class MyDataloader(SlimDataLoaderBase):
         # assert 0 <= folder <= 4, "only support 5-folder cross validation"
 
         # load infos of data from training_samples_info.csv
-        csv_reader = csv.reader(open(samples_info_file, 'r'))
-        all_samples_info = [row for row in csv_reader][1:]
-        self._data = all_samples_info
-        # samples_every_folder = len(all_samples_info) // 5
-        # if not is_train:
-        #     self._data = all_samples_info[folder * samples_every_folder: (folder + 1) * samples_every_folder]
-        # else:
-        #     self._data = all_samples_info[:folder * samples_every_folder] + \
-        #                  all_samples_info[(folder + 1) * samples_every_folder:]
+        train_samples_info, train_samples_name, _, _ = split_train_val()
+        print("samples for training: ", train_samples_name)
+        self._data = train_samples_info
 
         self.class_weight = class_weight
         self.num_class = len(class_weight)

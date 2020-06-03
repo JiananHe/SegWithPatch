@@ -7,7 +7,7 @@ from data_loader.batch_generator import get_data_loader
 from torch.utils.data import DataLoader
 from loss.dice_ce_loss import DC_and_CE_loss
 from utils import *
-from val import dataset_prediction
+from val import dataset_validation
 from tensorboardX import SummaryWriter
 
 
@@ -25,12 +25,15 @@ def calc_batch_weights(image_names):
     return batch_weights
 
 
+def lr_delay(initial_lr, epoch):
+    return initial_lr * pow((1 - epoch / Epoch), 0.9)
+
+
 if __name__ == "__main__":
     # 模型
     net_name = 'td_unet'
     net = get_net(1)
     net = torch.nn.DataParallel(net).cuda()
-    module_dir = './module/td_unet80-0.668-0.601.pth'
     if resume_training:
         print('----------resume training-----------')
         net.load_state_dict(torch.load(module_dir))
@@ -40,7 +43,11 @@ if __name__ == "__main__":
     loss_func = DC_and_CE_loss()
 
     # 优化器
-    opt = torch.optim.Adam(net.parameters(), lr=leaing_rate, weight_decay=0.0005)
+    opt = torch.optim.Adam(net.parameters(), lr=inital_learning_rate, weight_decay=0.0005)
+
+    # 验证集数据
+    _, _, val_samples_info, val_samples_name = split_train_val()
+    print("samples for validation: ", val_samples_name)
 
     # 训练
     writer = SummaryWriter()
@@ -80,52 +87,36 @@ if __name__ == "__main__":
             os.system('echo %s' % s)
 
         mean_loss = sum(mean_loss) / len(mean_loss)
+        writer.add_scalar('train/loss', mean_loss, epoch)
 
         # 学习率递减
-        lr_decay.step()
-
-        writer.add_scalar('train/loss', mean_loss, epoch)
-        # writer.add_scalar('lr', lr_decay.get_lr(), epoch)  # ReduceLROnPlateau没有get_lr()方法
+        for p in opt.param_groups:
+            p['lr'] = lr_delay(inital_learning_rate, epoch)
         writer.add_scalar('lr', opt.param_groups[0]['lr'], epoch)
 
         s = '--- epoch:%d, mean loss:%.3f, epoch time:%.3f min\n' % (epoch, mean_loss, (time() - epoch_start) / 60)
         os.system('echo %s' % s)
 
         # valset accuracy
-        if epoch % 20 is 0:
-            os.system('echo %s' % "--------evaluation on validation set----------")
-            val_eval_start = time()
-            val_org_mean_dice = dataset_prediction(net, 'info_files/btcv_val_info.csv')
-            writer.add_scalars('valset orgs dice',
-                               {name: val_org_mean_dice[i] for i, name in enumerate(organs_name)}, epoch)
+        os.system('echo %s' % "--------evaluation on validation set----------")
+        val_eval_start = time()
+        val_cls_mean_dice = dataset_validation(net, val_samples_info, show_sample_dice=True)
+        writer.add_scalars('valset orgs dice',
+                           {name: val_cls_mean_dice[i] for i, name in enumerate(classes_name)}, epoch)
 
-            val_mean_dice = np.mean(val_org_mean_dice)
-            s = "mean dice: %.3f, eval time: %.3f min" % (val_mean_dice, (time() - val_eval_start) / 60)
-            os.system('echo %s' % s)
-            writer.add_scalar("valset mean dice", val_mean_dice, epoch)
+        val_mean_dice = np.mean(val_cls_mean_dice)
+        s = "mean dice: %.3f, eval time: %.3f min" % (val_mean_dice, (time() - val_eval_start) / 60)
+        os.system('echo %s' % s)
+        writer.add_scalar("valset mean dice", val_mean_dice, epoch)
 
-            # update organs weight according to dices
-            organs_weight = 1.0 - np.array(val_org_mean_dice)
-            os.system('echo %s' % "-----------------------------------------\n")
+        # update organs weight according to dices
+        class_weight = 1.0 - np.array(val_cls_mean_dice)
+        os.system('echo %s' % "---------------------------------------------\n")
 
-        # trainset accuracy
-        if epoch % 40 is 0:
-            os.system('echo %s' % "----------evaluation on training set-----------")
-            train_eval_start = time()
-            train_org_mean_dice = dataset_prediction(net, 'info_files/btcv_train_info.csv')
-            writer.add_scalars('trainset orgs dice',
-                               {name: train_org_mean_dice[i] for i, name in enumerate(organs_name)}, epoch)
-
-            train_mean_dice = np.mean(train_org_mean_dice)
-            s = "mean dice: %.3f, eval time: %.3f min" % (train_mean_dice, (time() - train_eval_start) / 60)
-            os.system('echo %s' % s)
-            writer.add_scalar("trainset mean dice", train_mean_dice, epoch)
-            torch.save(net.state_dict(), "./module/%s%d-%.3f-%.3f.pth"
-                       % (net_name, epoch, np.mean(train_org_mean_dice), np.mean(val_org_mean_dice)))
-            os.system('echo %s' % "-----------------------------------------\n")
-
-        # 每十个个epoch保存一次模型参数
-        if epoch % 10 is 0:
-            torch.save(net.state_dict(), "./module/%s%d-%.3f.pth" % (net_name, epoch, mean_loss))
+        # 保存模型参数
+        if epoch % 5 is 1:
+            model_save_name = "%s%d-%.3f-%.3f.pth" % (net_name, epoch, mean_loss, val_mean_dice)
+            torch.save(net.state_dict(), "./module/" + model_save_name)
+            print("model saved as:  %s" % model_save_name)
 
     writer.close()
