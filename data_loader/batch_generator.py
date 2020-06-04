@@ -74,7 +74,7 @@ class MyDataloader(SlimDataLoaderBase):
                 # select a patch in which the class with the highest weight is contained
                 # class_id = np.argmax(self.class_weight - current_weight) + 1
                 # class_id = np.random.choice(list(range(1, self.num_class)))
-
+                class_id = self.calc_sample_class_id()
                 data_patch, seg_patch, contained_ids = self.crop_patch(image, segmentation, class_id)
                 data_patches.append(data_patch[None])
                 seg_patches.append(seg_patch[None])

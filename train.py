@@ -4,7 +4,6 @@ import numpy as np
 import torch
 from models.td_unet import get_net
 from data_loader.batch_generator import get_data_loader
-from torch.utils.data import DataLoader
 from loss.dice_ce_loss import DC_and_CE_loss
 from utils import *
 from val import dataset_validation
