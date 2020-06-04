@@ -22,7 +22,7 @@ def patch_predict(net, patch):
     with torch.no_grad():
         patch_tensor = torch.FloatTensor(patch).unsqueeze(1).cuda()  # (bs, 1, *patch_size)
         outputs = net(patch_tensor)
-        prediction = outputs[-1].squeeze().cpu().detach().numpy()  # (cls, *patch_size)
+        prediction = outputs[-1].squeeze().cpu().detach().numpy()  # (bs, cls, *patch_size)
 
         del patch_tensor, outputs
         torch.cuda.empty_cache()
@@ -54,7 +54,7 @@ def volume_predict(net, vol_array):
 
                 # predict validation batch
                 if sample_count == val_batch_size:
-                    prediction = patch_predict(net, patch_batch)  # (14, *patch_size)
+                    prediction = patch_predict(net, patch_batch)  # (bs, cls, *patch_size)
                     for i in range(val_batch_size):
                         vol_predict[:,
                         patch_border[i][0]:patch_border[i][1],

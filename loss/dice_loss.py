@@ -11,7 +11,6 @@ sys.path.append("..")
 from utils import *
 
 num_organ = organs_properties['num_organ']
-organs_weight = organs_properties['organs_weight']
 
 
 def get_tp_fp_fn(net_output, gt, axes=None, mask=None, square=False):
@@ -73,47 +72,42 @@ def get_tp_fp_fn(net_output, gt, axes=None, mask=None, square=False):
 
 
 class DiceLoss(nn.Module):
-    def __init__(self, class_weight, do_bg=True, smooth=1e-5):
+    def __init__(self, class_weight):
+        super().__init__()
+
+    def forward(self, predict, target):
         """
-        Copy form nnUnet
+        计算多类别平均dice loss
+        :param predict: tensor, 阶段一的输出 (B, 14, 64, 64, 64)
+        :param target: numpy, 金标准 (B, 64, 64, 64)
+        :return: loss
         """
-        super(DiceLoss, self).__init__()
+        # 首先将金标准拆开
+        (d, w, h) = target.size()[-3:]
+        organs_target = torch.zeros(target.size(0), num_organ+1, d, w, h)
+        for idx in range(num_organ+1):
+            organs_target[:, idx, :, :, :] = (target == idx) + .0
 
-        self.do_bg = do_bg
-        self.class_weight = class_weight
-        self.smooth = smooth
+        organs_target = organs_target.cuda(predict.device.index).long()  # (B, Cls, *patch size)
 
-    def forward(self, x, y, batch_weight, loss_mask=None):
-        assert len(self.class_weight) == x.shape[1]
-        assert isinstance(x, torch.Tensor)
-        if not isinstance(y, torch.Tensor):
-            y = torch.from_numpy(y).cuda(x.device.index).long()
-        class_weight = torch.tensor(self.class_weight).cuda(x.device.index).float()
-        batch_weight = torch.tensor(batch_weight).cuda(x.device.index).float()
+        loss_sum = 0.0
+        organs_count = 0
+        for idx in range(num_organ + 1):
+            target_temp = organs_target[:, idx, :, :, :]
+            if (target_temp == 0).all():  # 可能所有batch中的该器官都没有
+                continue
+            pred_temp = predict[:, idx, :, :, :]
+            pred_temp = 0.9 - torch.relu(0.9 - pred_temp)
+            org_dice = 2 * (torch.sum(pred_temp * target_temp, [1, 2, 3])) / \
+                       (torch.sum(pred_temp, [1, 2, 3])
+                        + torch.sum(target_temp, [1, 2, 3]) + 1e-6)
+            org_loss = 1 - org_dice
+            loss_sum += org_loss
+            organs_count += 1
 
-        shp_x = x.shape
-        axes = list(range(2, len(shp_x)))  # (2, 3, 4)
+        loss_sum /= organs_count
 
-        # softmax
-        x = F.softmax(x, dim=1)
-
-        tp, fp, fn = get_tp_fp_fn(x, y, axes, loss_mask, False)  # (N, C+1)
-
-        tp = (tp * class_weight).sum(1)
-        fp = (fp * class_weight).sum(1)
-        fn = (fn * class_weight).sum(1)
-
-        tp = tp * batch_weight  # (N)
-        fp = fp * batch_weight
-        fn = fn * batch_weight
-
-        nominator = 2 * tp + self.smooth
-        denominator = 2 * tp + fp + fn + self.smooth
-
-        dc = nominator / denominator
-        dc = dc.mean()
-
-        return 1 - dc
+        return loss_sum.mean()
 
 
 if __name__ == "__main__":
@@ -126,4 +120,4 @@ if __name__ == "__main__":
     # print(seg.numpy())
 
     # pytorch
-    print(loss_func(ct, seg, [1] * 2))
+    print(loss_func(ct, seg))
