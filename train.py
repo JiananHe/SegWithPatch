@@ -39,9 +39,6 @@ if __name__ == "__main__":
         net.load_state_dict(torch.load(module_dir))
         net.train()
 
-    # 损失函数
-    loss_func = DC_and_CE_loss()
-
     # 优化器
     opt = torch.optim.Adam(net.parameters(), lr=inital_learning_rate, weight_decay=0.0005)
 
@@ -58,6 +55,9 @@ if __name__ == "__main__":
         # switch models to training mode, clear gradient accumulators
         net.train()
         opt.zero_grad()
+
+        # 损失函数
+        loss_func = DC_and_CE_loss(class_weight)
 
         # 数据
         batch_loader = get_data_loader(class_weight, data_loader_processes)
