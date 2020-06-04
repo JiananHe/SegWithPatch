@@ -47,7 +47,7 @@ class MyDataloader(SlimDataLoaderBase):
         count_sorted = sorted(MyDataloader.current_counts)
         count_order = [count_sorted.index(i) for i in MyDataloader.current_counts]
 
-        diff_order = class_weight_order - count_order
+        diff_order = np.subtract(class_weight_order, count_order)
         assert np.sum(diff_order) == 0
         under_sampled_id = np.argwhere(np.array(diff_order) > 0).squeeze()
         return np.random.choice(under_sampled_id)
