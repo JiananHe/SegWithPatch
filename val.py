@@ -38,7 +38,7 @@ def volume_predict(net, vol_array):
     steps = compute_steps_for_sliding_window(patch_size, vs)
 
     patch_batch = np.zeros((val_batch_size, *patch_size))
-    patch_border = np.zeros((val_batch_size, 6))
+    patch_border = np.zeros((val_batch_size, 6), dtype=np.int)
     sample_count = 0
     for z_start in steps[0]:
         z_end = z_start + patch_size[0]

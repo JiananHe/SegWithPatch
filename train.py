@@ -49,6 +49,8 @@ if __name__ == "__main__":
     # 训练
     writer = SummaryWriter()
     for epoch in range(1, Epoch+1):
+        dc_mean_loss = []
+        ce_mean_loss = []
         mean_loss = []
         epoch_start = time()
 
@@ -70,12 +72,16 @@ if __name__ == "__main__":
 
             # forward + backward + (after grad_accum_steps)optimize and clear grad
             outputs = net(data)
-            loss = loss_func(outputs, target)
+            ce_loss, dc_loss = loss_func(outputs, target)
+            loss = ce_loss + dc_loss
 
             # loss regularization
             loss = loss / grad_accum_steps
             # back propagation (calculate grad)
             loss.backward()
+
+            dc_mean_loss.append(dc_loss.item())
+            ce_mean_loss.append(ce_loss.item())
             mean_loss.append(loss.item())
 
             # update parameters of net
@@ -83,18 +89,23 @@ if __name__ == "__main__":
                 opt.step()  # update parameters of net
                 opt.zero_grad()  # reset gradient
 
-            s = 'epoch:{}, step:{}, loss:{:.3f}'.format(epoch, step, loss.item())
+            s = 'epoch:{}, step:{}, dc loss:{:.3f}, ce loss:{:.3f}'.format(epoch, step, dc_loss.item(), ce_loss.item())
             os.system('echo %s' % s)
 
-        mean_loss = sum(mean_loss) / len(mean_loss)
+        mean_loss = np.mean(mean_loss)
+        dc_mean_loss = np.mean(dc_mean_loss)
+        ce_mean_loss = np.mean(ce_mean_loss)
         writer.add_scalar('train/loss', mean_loss, epoch)
+        writer.add_scalar('train/dc_loss', dc_mean_loss, epoch)
+        writer.add_scalar('train/ce_loss', ce_mean_loss, epoch)
 
         # 学习率递减
         for p in opt.param_groups:
             p['lr'] = lr_delay(inital_learning_rate, epoch)
         writer.add_scalar('lr', opt.param_groups[0]['lr'], epoch)
 
-        s = '--- epoch:%d, mean loss:%.3f, epoch time:%.3f min\n' % (epoch, mean_loss, (time() - epoch_start) / 60)
+        s = '--- epoch:%d, mean_dc_loss:%.3f, mean ce loss:%.3f, mean loss:%.3f, epoch time:%.3f min\n' \
+            % (epoch, dc_mean_loss, ce_mean_loss, mean_loss, (time() - epoch_start) / 60)
         os.system('echo %s' % s)
 
         # valset accuracy

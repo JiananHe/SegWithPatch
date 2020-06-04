@@ -58,5 +58,4 @@ class DC_and_CE_loss(nn.Module):
 
         total_ce_loss = total_ce_loss * self.weight_ce
         total_dc_loss = total_dc_loss * self.weight_dice
-        print('dice loss: %.3f, ce loss: %.3f' % (total_dc_loss.item(), total_ce_loss.item()))
-        return  total_ce_loss + total_dc_loss
+        return total_ce_loss, total_dc_loss
