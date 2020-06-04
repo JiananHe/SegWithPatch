@@ -89,6 +89,7 @@ class DiceLoss(nn.Module):
             organs_target[:, idx, :, :, :] = (target == idx) + .0
 
         # organs_target = organs_target.cuda(predict.device.index).long()  # (B, Cls, *patch size)
+        predict = F.softmax(predict, dim=1)
         organs_target = torch.from_numpy(organs_target).cuda(predict.device.index).long()
 
         loss_sum = 0.0
@@ -107,7 +108,6 @@ class DiceLoss(nn.Module):
             organs_count += 1
 
         loss_sum /= organs_count
-        loss_sum *= batch_weight
         return loss_sum.mean()
 
 
