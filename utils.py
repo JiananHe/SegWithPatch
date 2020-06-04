@@ -35,7 +35,7 @@ Epoch = 1000
 iteration_every_epoch = 250
 # 梯度累计，即每grad_accum_steps次iteration更新一次网络参数
 grad_accum_steps = 2
-inital_learning_rate = 1e-2
+inital_learning_rate = 1e-3
 data_loader_processes = 4
 # the weight for the batch from pseudo labels
 batch_low_confidence_weight = 0.2

@@ -122,6 +122,7 @@ if __name__ == "__main__":
 
         # update organs weight according to dices
         class_weight = 1.0 - np.array(val_cls_mean_dice)
+        class_weight = class_weight / np.max(class_weight)
         os.system('echo %s' % "---------------------------------------------\n")
 
         # 保存模型参数
