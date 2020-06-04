@@ -68,6 +68,7 @@ if __name__ == "__main__":
             data = batch['data']
             data = torch.FloatTensor(data).cuda()
             target = batch['seg']
+            batch_class_ids = batch["batch_class_ids"]
             batch_weights = calc_batch_weights(batch['image_names'])
 
             # forward + backward + (after grad_accum_steps)optimize and clear grad
@@ -89,7 +90,7 @@ if __name__ == "__main__":
                 opt.step()  # update parameters of net
                 opt.zero_grad()  # reset gradient
 
-            s = 'epoch:{}, step:{}, dc loss:{:.3f}, ce loss:{:.3f}'.format(epoch, step, dc_loss.item(), ce_loss.item())
+            s = 'epoch:{}, step:{}, dc loss:{:.3f}, ce loss:{:.3f}, contained class:'.format(epoch, step, dc_loss.item(), ce_loss.item()) + str(batch_class_ids)
             os.system('echo %s' % s)
 
         mean_loss = np.mean(mean_loss)
