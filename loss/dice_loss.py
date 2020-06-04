@@ -74,6 +74,7 @@ def get_tp_fp_fn(net_output, gt, axes=None, mask=None, square=False):
 class DiceLoss(nn.Module):
     def __init__(self, class_weight):
         super().__init__()
+        self.smooth = 1e-6
 
     def forward(self, predict, target, batch_weight):
         """
@@ -82,33 +83,25 @@ class DiceLoss(nn.Module):
         :param target: numpy, 金标准 (B, 64, 64, 64)
         :return: loss
         """
-        # 首先将金标准拆开
-        (d, w, h) = target.shape[-3:]
-        organs_target = np.zeros((target.shape[0], num_organ+1, d, w, h))
-        for idx in range(num_organ+1):
-            organs_target[:, idx, :, :, :] = (target == idx) + .0
+        assert isinstance(predict, torch.Tensor)
+        if not isinstance(target, torch.Tensor):
+            target = torch.from_numpy(target).cuda(predict.device.index).long()
 
-        # organs_target = organs_target.cuda(predict.device.index).long()  # (B, Cls, *patch size)
-        predict = F.softmax(predict, dim=1)
-        organs_target = torch.FloatTensor(organs_target).cuda(predict.device.index)
+        with torch.no_grad():
+            if len(predict.shape) != len(target.shape):
+                target = target.unsqueeze(1)
 
-        loss_sum = 0.0
-        organs_count = 0
-        for idx in range(num_organ + 1):
-            target_temp = organs_target[:, idx, :, :, :]
-            if (target_temp == 0).all():  # 可能所有batch中的该器官都没有
-                continue
-            pred_temp = predict[:, idx, :, :, :]
-            pred_temp = 0.9 - torch.relu(0.9 - pred_temp)
-            org_dice = 2 * (torch.sum(pred_temp * target_temp, [1, 2, 3])) / \
-                       (torch.sum(pred_temp, [1, 2, 3])
-                        + torch.sum(target_temp, [1, 2, 3]) + 1e-6)
-            org_loss = 1 - org_dice
-            loss_sum += org_loss
-            organs_count += 1
+            target = target.long()
+            y_onehot = torch.zeros(predict).cuda(predict.device.index)
+            y_onehot.scatter_(1, target, 1)
 
-        loss_sum /= organs_count
-        return loss_sum.mean()
+        predict = torch.sigmoid(predict)
+        axes = tuple(range(1, len(predict.size())))
+        numer = torch.sum((predict * y_onehot), dim=axes)
+        denom = torch.sum(predict + y_onehot, dim=axes)
+
+        loss = 1 - (2 * numer + self.smooth) / (denom + self.smooth)
+        return loss.mean()
 
 
 if __name__ == "__main__":
