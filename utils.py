@@ -199,8 +199,9 @@ def split_train_val():
     for info in all_samples_info:
         name = info[0].split("/")[-1]
         if int(name[5:7]) > 60:
-            train_samples_info.append(info)
-            train_samples_name.append(name)
+            continue
+            # train_samples_info.append(info)
+            # train_samples_name.append(name)
         else:
             if len(val_samples_info) < 6:
                 val_samples_info.append(info)
