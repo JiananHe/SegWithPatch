@@ -92,7 +92,7 @@ class DiceLoss(nn.Module):
                 target = target.unsqueeze(1)
 
             target = target.long()
-            y_onehot = torch.zeros(predict).cuda(predict.device.index)
+            y_onehot = torch.zeros(predict.shape).cuda(predict.device.index)
             y_onehot.scatter_(1, target, 1)
 
         predict = torch.sigmoid(predict)
@@ -101,11 +101,14 @@ class DiceLoss(nn.Module):
         denom = torch.sum(predict + y_onehot, dim=axes)  # (N, C)
 
         loss = 0.0
+        counts = 0
         for i in range(num_organ+1):
             if (target == i).any():
                 loss += 1 - (2 * numer[:, i] + self.smooth) / (denom[:, i] + self.smooth)
+                counts += 1
             else:
                 continue
+        loss /= counts
         return loss.mean()
 
 
