@@ -30,6 +30,9 @@ class DC_and_CE_loss(nn.Module):
         # multi-scale network output, target should be a numpy array
         assert isinstance(target, np.ndarray)
         assert net_outputs[-1].shape[-3:] == target.shape[-3:]
+        # delete the channel dimension in target
+        if len(target.shape) == 5 and target.shape[1] == 1:
+            target = np.squeeze(target, axis=1)
 
         dc_losses = []
         ce_losses = []

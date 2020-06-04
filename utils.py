@@ -157,7 +157,7 @@ def read_nii(path, type=None):
 
 def image_resize(old_image, new_shape, order, is_anisotropic):
     is_single_image = False
-    if len(old_image.shape) == 3:  # (B, D, W, H)
+    if len(old_image.shape) == 3:  # (D, W, H)
         old_image = old_image[None]
         is_single_image = True
 

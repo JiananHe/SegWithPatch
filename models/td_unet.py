@@ -1,13 +1,10 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from loss.dice_loss import DiceLoss
-from loss.ce_loss import CELoss
-from loss.dice_ce_loss import DC_and_CE_loss
 import torchvision
 import numpy as np
 import sys
 sys.path.append("../")
+from loss.dice_ce_loss import DC_and_CE_loss
 from utils import setup_seed, organs_properties, network_configure
 
 
@@ -125,7 +122,7 @@ if __name__ == "__main__":
     # summary(net, (1, 48, 256, 256))
 
     ct = torch.randn((2, 1, 48, 128, 128)).cuda()
-    seg = np.random.randint(0, 13, (2, 48, 128, 128))
+    seg = np.random.randint(0, 13, (2, 1, 48, 128, 128))
     loss_func = DC_and_CE_loss([1.0]*(num_organ+1))
 
     with torch.no_grad():

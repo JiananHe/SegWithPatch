@@ -14,7 +14,7 @@ from utils import *
 
 
 class MyDataloader(SlimDataLoaderBase):
-    current_counts = np.zeros(organs_properties["num_organ"])
+    current_counts = np.zeros(organs_properties["num_organ"] + 1)
 
     def __init__(self, class_weight, num_threads_in_mt):
         """

@@ -64,7 +64,7 @@ if __name__ == "__main__":
 
         for step, batch in enumerate(batch_loader):
             data = batch['data']
-            data = data.cuda().float()
+            data = torch.FloatTensor(data).cuda()
             target = batch['seg']
             batch_weights = calc_batch_weights(batch['image_names'])
 
