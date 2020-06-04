@@ -90,7 +90,7 @@ class DiceLoss(nn.Module):
 
         # organs_target = organs_target.cuda(predict.device.index).long()  # (B, Cls, *patch size)
         predict = F.softmax(predict, dim=1)
-        organs_target = torch.from_numpy(organs_target).cuda(predict.device.index).long()
+        organs_target = torch.FloatTensor(organs_target).cuda(predict.device.index)
 
         loss_sum = 0.0
         organs_count = 0
