@@ -75,7 +75,7 @@ class DiceLoss(nn.Module):
     def __init__(self, class_weight):
         super().__init__()
 
-    def forward(self, predict, target):
+    def forward(self, predict, target, batch_weight):
         """
         计算多类别平均dice loss
         :param predict: tensor, 阶段一的输出 (B, 14, 64, 64, 64)
@@ -83,12 +83,13 @@ class DiceLoss(nn.Module):
         :return: loss
         """
         # 首先将金标准拆开
-        (d, w, h) = target.size()[-3:]
-        organs_target = torch.zeros(target.size(0), num_organ+1, d, w, h)
+        (d, w, h) = target.shape[-3:]
+        organs_target = np.zeros((target.shape[0], num_organ+1, d, w, h))
         for idx in range(num_organ+1):
             organs_target[:, idx, :, :, :] = (target == idx) + .0
 
-        organs_target = organs_target.cuda(predict.device.index).long()  # (B, Cls, *patch size)
+        # organs_target = organs_target.cuda(predict.device.index).long()  # (B, Cls, *patch size)
+        organs_target = torch.from_numpy(organs_target).cuda(predict.device.index).long()
 
         loss_sum = 0.0
         organs_count = 0
@@ -106,7 +107,7 @@ class DiceLoss(nn.Module):
             organs_count += 1
 
         loss_sum /= organs_count
-
+        loss_sum *= batch_weight
         return loss_sum.mean()
 
 
