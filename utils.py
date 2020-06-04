@@ -23,7 +23,7 @@ num_volumes_batch = 2
 val_batch_size = 8
 
 padding_size = np.array([20, 40, 40])
-patch_size = np.array([48, 128, 128])
+patch_size = np.array([48, 160, 160])
 crop_size = np.array([i * 3 / 2 for i in patch_size], dtype=np.int)
 
 resume_training = False
@@ -32,11 +32,11 @@ module_dir = './module/td_unet80-0.668-0.601.pth'
 os.environ['CUDA_VISIBLE_DEVICES'] = '1, 3'
 torch.backends.cudnn.benchmark = True
 Epoch = 1000
-iteration_every_epoch = 25
+iteration_every_epoch = 250
 # 梯度累计，即每grad_accum_steps次iteration更新一次网络参数
 grad_accum_steps = 2
 inital_learning_rate = 1e-2
-data_loader_processes = 3
+data_loader_processes = 4
 # the weight for the batch from pseudo labels
 batch_low_confidence_weight = 0.2
 

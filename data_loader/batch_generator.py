@@ -74,7 +74,7 @@ class MyDataloader(SlimDataLoaderBase):
                 
                 batch_class_ids += contained_ids
                 for id in contained_ids:
-                    MyDataloader.current_counts[id - 1] += 1
+                    MyDataloader.current_counts[id] += 1
         data_patches = np.array(data_patches).astype(np.float32)
         seg_patches = np.array(seg_patches).astype(np.float32)
         return {'data': data_patches, 'seg': seg_patches, 'image_names': image_names, 'batch_class_ids': batch_class_ids}
@@ -114,7 +114,7 @@ class MyDataloader(SlimDataLoaderBase):
 
         contained_class_id = [class_id]
         num_pixel_thresh = 0.1 * np.product(patch_size)
-        for cid in range(1, self.num_class+1):
+        for cid in range(0, self.num_class):
             if np.sum(seg_patch == cid) > num_pixel_thresh:
                 contained_class_id.append(cid)
 
