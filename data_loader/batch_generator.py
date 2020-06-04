@@ -14,7 +14,7 @@ from utils import *
 
 
 class MyDataloader(SlimDataLoaderBase):
-    current_counts = np.zeros(organs_properties["num_organ"] + 1)
+    current_counts = [0] * (organs_properties["num_organ"] + 1)
 
     def __init__(self, class_weight, num_threads_in_mt):
         """
@@ -41,6 +41,17 @@ class MyDataloader(SlimDataLoaderBase):
         self.current_position = self.thread_id
         self.was_initialized = True
 
+    def calc_sample_class_id(self):
+        class_weight_sorted = sorted(self.class_weight)
+        class_weight_order = [class_weight_sorted.index(i) for i in self.class_weight]
+        count_sorted = sorted(MyDataloader.current_counts)
+        count_order = [count_sorted.index(i) for i in MyDataloader.current_counts]
+
+        diff_order = class_weight_order - count_order
+        assert np.sum(diff_order) == 0
+        under_sampled_id = np.argwhere(np.array(diff_order) > 0).squeeze()
+        return np.random.choice(under_sampled_id)
+
     def generate_train_batch(self):
         if not self.was_initialized:
             self.reset()
@@ -48,11 +59,6 @@ class MyDataloader(SlimDataLoaderBase):
         if self.current_position > iteration_every_epoch + (self.number_of_threads_in_multithreaded - 1):
             self.reset()
             raise StopIteration
-
-        if np.sum(MyDataloader.current_counts) == 0:
-            current_weight = np.zeros(len(self.class_weight))
-        else:
-            current_weight = MyDataloader.current_counts / np.sum(MyDataloader.current_counts)
 
         data_patches = []
         seg_patches = []
@@ -66,7 +72,9 @@ class MyDataloader(SlimDataLoaderBase):
             segmentation = np.load(selected_samples[1])
             for j in range(num_patches_volume):
                 # select a patch in which the class with the highest weight is contained
-                class_id = np.argmax(self.class_weight - current_weight) + 1
+                # class_id = np.argmax(self.class_weight - current_weight) + 1
+                # class_id = np.random.choice(list(range(1, self.num_class)))
+
                 data_patch, seg_patch, contained_ids = self.crop_patch(image, segmentation, class_id)
                 data_patches.append(data_patch[None])
                 seg_patches.append(seg_patch[None])

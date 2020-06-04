@@ -54,7 +54,7 @@ num_organ = organs_properties['num_organ']
 organs_size = organs_properties['organs_size']
 classes_name = ["bg"] + organs_name
 class_weight = np.array([1] + organs_properties["organs_weight"])
-class_weight = class_weight / np.sum(class_weight)
+class_weight = class_weight / np.max(class_weight)
 
 network_configure = {'kernel_sizes': [[1, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3]],
                      'features_channels': [32, 64, 128, 256, 320],

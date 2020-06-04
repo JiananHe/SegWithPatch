@@ -42,6 +42,10 @@ if __name__ == "__main__":
     # 优化器
     opt = torch.optim.Adam(net.parameters(), lr=inital_learning_rate, weight_decay=0.0005)
 
+    # switch models to training mode, clear gradient accumulators
+    net.train()
+    opt.zero_grad()
+
     # 验证集数据
     _, _, val_samples_info, val_samples_name = split_train_val()
     print("samples for validation: ", val_samples_name)
@@ -53,10 +57,6 @@ if __name__ == "__main__":
         ce_mean_loss = []
         mean_loss = []
         epoch_start = time()
-
-        # switch models to training mode, clear gradient accumulators
-        net.train()
-        opt.zero_grad()
 
         # 损失函数
         loss_func = DC_and_CE_loss(class_weight)

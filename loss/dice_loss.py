@@ -113,15 +113,15 @@ class DiceLoss(nn.Module):
         dc = nominator / denominator
         dc = dc.mean()
 
-        return -dc
+        return 1 - dc
 
 
 if __name__ == "__main__":
     batch_size = 2
     class_num = 3
     loss_func = DiceLoss([1.0, 2.0, 3.0])
-    ct = torch.randn((batch_size, class_num, 5, 5)).cuda()
-    seg = torch.randint(0, class_num, (batch_size, 5, 5)).cuda()
+    ct = torch.randint(0, class_num, (batch_size, class_num, 5))
+    seg = ct
     # print(ct.numpy())
     # print(seg.numpy())
 
