@@ -1,43 +1,42 @@
-import os
-import SimpleITK as sitk
-import torch
-import numpy as np
-import csv
-from utils import organs_properties, calc_weight_matrix, post_process
-from models.td_unet import get_net
-# from models.td_unet_cnn import get_net
-# from models.dense_vnet import get_net
-import scipy.ndimage as ndimage
-from val import dataset_prediction
-from utils import read_dicom
-from preprocess.BTCV.data_preprocess import preprocess
+from val import *
+from utils import *
+
+
+def dataset_prediction(net, dataset_folder, format):
+    assert format == 'dcm' or format == 'nii'
+    dataset_info = json.load(open(dataset_info_file, 'r'))
+    median_spacing = dataset_info['median_spacing']
+    clip_min_intensity = dataset_info['clip_min_intensity']
+    clip_max_intensity = dataset_info['clip_max_intensity']
+    mean = dataset_info['mean']
+    std_variance = dataset_info['std_variance']
+
+    for file in os.listdir(dataset_folder):
+        print("predict ", file)
+        if format == "nii":
+            image_vol = read_nii(os.path.join(dataset_folder, file))
+        elif format == "dcm":
+            image_vol = read_dicom(os.path.join(dataset_folder, file))
+        else:
+            raise NameError("unsupported format, only support dicom and nifit") from Exception
+
+        # resample
+        old_spacing = image_vol.GetSpacing()
+        image_array = sitk.GetArrayFromImage(image_vol)
+        image_array = np.clip(image_array, clip_min_intensity, clip_max_intensity)
+        image_array = (image_array - mean) / std_variance
+        resampled_img = image_resample(image_array, old_spacing, median_spacing, 3, True)
+
+        predict = volume_predict(net, resampled_img)
+        predict = post_process(predict)
+        save_seg(predict, median_spacing, file, old_spacing, image_array.shape,
+                 vol_direction=image_vol.GetDirection(), vol_origin=image_vol.GetOrigin())
 
 
 if __name__ == "__main__":
-    # # preprocess
-    # info = []
-    # info_file = open('./info_files/private_data_info.csv', 'w', newline="")
-    # raw_img_path = r"D:\Projects\OrgansSegment\Data\PrivateData\RawData"
-    # sample_img_path = r"D:\Projects\OrgansSegment\Data\PrivateData\Samples"
-    # info_writer = csv.writer(info_file)
-    #
-    # for case in os.listdir(raw_img_path):
-    #     ct_vol = read_dicom(os.path.join(raw_img_path, case, os.listdir(os.path.join(raw_img_path, case))[0]))
-    #     # save as nii
-    #     sitk.WriteImage(ct_vol, r"D:\Projects\OrgansSegment\Data\PrivateData\RawDataNii\img\%s.nii.gz" % case)
-    #
-    #     preprocess(case, ct_vol, sample_img_path, info)
-    #
-    # for f in info:
-    #     info_writer.writerow(f)
-    # info_writer.close()
-
-    # prediction
-    # models
-    net = get_net(False)
+    net = get_net(1)
     net = torch.nn.DataParallel(net).cuda()
-    net.load_state_dict(torch.load('./module/td_unet410-0.373.pth'))
+    net.load_state_dict(torch.load("./module/td_unet66-0.151-0.357.pth"))
     net.eval()
 
-    dataset_prediction(net, 'info_files/private_data_info.csv',
-                       raw_data_dir=r'D:\Projects\OrgansSegment\Data\PrivateData\RawDataNii', cal_acc=False, save=True, postprocess=True)
+    dataset_prediction(net, "../PrivateData/", "dcm")

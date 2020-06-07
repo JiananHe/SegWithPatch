@@ -82,6 +82,16 @@ def setup_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 
+def match_lbl_name(img_name):
+    """
+    establish the mapping relationship between label name and image name
+    :param img_name:
+    :return: label name
+    """
+    # in BTCV dataset, img0001.nii.gz --> label0001.nii.gz
+    return img_name.replace("img", "img")
+
+
 def calc_weight_matrix(ps, sigma_scale=1. / 8):
     tmp = np.zeros(ps)
     center_coords = [i // 2 for i in ps]
@@ -153,6 +163,18 @@ def read_nii(path, type=None):
         return sitk.ReadImage(path)
     else:
         return sitk.ReadImage(path, type)
+
+
+def image_resample(old_image, old_spacing, new_spacing, order, is_anisotropic):
+    old_shape = old_image.shape
+    new_shape = np.round((np.array([old_spacing[2] / new_spacing[2],
+                                    old_spacing[0] / new_spacing[0],
+                                    old_spacing[1] / new_spacing[1]]).astype(float) * old_shape)).astype(int)
+    if np.any(new_shape != old_shape):
+        image_resampled = image_resize(old_image, new_shape, order, is_anisotropic)
+    else:
+        image_resampled = old_image
+    return image_resampled
 
 
 def image_resize(old_image, new_shape, order, is_anisotropic):
