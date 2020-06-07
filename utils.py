@@ -82,6 +82,16 @@ def setup_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 
+def match_lbl_name(img_name):
+    """
+    establish the mapping relationship between label name and image name
+    :param img_name:
+    :return: label name
+    """
+    # in BTCV dataset, img0001.nii.gz --> label0001.nii.gz
+    return img_name.replace("img", "img")
+
+
 def calc_weight_matrix(ps, sigma_scale=1. / 8):
     tmp = np.zeros(ps)
     center_coords = [i // 2 for i in ps]
@@ -99,38 +109,6 @@ def calc_weight_matrix(ps, sigma_scale=1. / 8):
 
 
 weight_matrix = calc_weight_matrix(patch_size)
-
-
-def post_process(input):
-    """
-    分割结果的后处理：保留最大连通区域
-    :param input: whole volume （D, W, H）
-    :return: （D, W, H）
-    """
-    s = input.shape
-    output = np.zeros((num_organ + 1, s[0], s[1], s[2]))
-    for id in range(1, num_organ + 1):
-        org_seg = (input == id) + .0
-        if (org_seg == .0).all():
-            continue
-        labels, num = measure.label(org_seg, return_num=True)
-        regions = measure.regionprops(labels)
-        regions_area = [regions[i].area for i in range(num)]
-
-        # omit_region_id = []
-        # for rid, area in enumerate(regions_area):
-        #     if area < 0.1 * organs_size[organs_index[id - 1]]:  # 记录区域面积小于10%*器官尺寸的区域的id
-        #         omit_region_id.append(rid)
-        # for idx in omit_region_id:
-        #     org_seg[labels == (idx+1)] = 0
-
-        region_num = regions_area.index(max(regions_area)) + 1  # 记录面积最大的区域，不会计算background(0)
-        org_seg[labels == region_num] = 1
-        org_seg[labels != region_num] = 0
-
-        output[id, :, :, :] = org_seg
-
-    return np.argmax(output, axis=0)
 
 
 def read_dicom(path):
@@ -153,6 +131,18 @@ def read_nii(path, type=None):
         return sitk.ReadImage(path)
     else:
         return sitk.ReadImage(path, type)
+
+
+def image_resample(old_image, old_spacing, new_spacing, order, is_anisotropic):
+    old_shape = old_image.shape
+    new_shape = np.round((np.array([old_spacing[2] / new_spacing[2],
+                                    old_spacing[0] / new_spacing[0],
+                                    old_spacing[1] / new_spacing[1]]).astype(float) * old_shape)).astype(int)
+    if np.any(new_shape != old_shape):
+        image_resampled = image_resize(old_image, new_shape, order, is_anisotropic)
+    else:
+        image_resampled = old_image
+    return image_resampled
 
 
 def image_resize(old_image, new_shape, order, is_anisotropic):

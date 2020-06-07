@@ -23,16 +23,6 @@ def check_path():
             os.makedirs(path)
 
 
-def match_lbl_name(img_name):
-    """
-    establish the mapping relationship between label name and image name
-    :param img_name:
-    :return: label name
-    """
-    # in BTCV dataset, img0001.nii.gz --> label0001.nii.gz
-    return img_name.replace("img", "img")
-
-
 def get_median_spacing(images_path, labels_path, format="nii"):
     """
     statistic median spacing of images in train set
@@ -355,7 +345,7 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
     # samples infos to be recorded
     samples_infos = []
     samples_info_writer = csv.writer(open(samples_info_file, "w", newline=""))
-    samples_info_writer.writerow(["processed_image", "processed_label", "raw_spacing", "resampled_shape", "cropped_coordinates", "final_shape"])
+    samples_info_writer.writerow(["processed_image", "processed_label", "raw_spacing", "raw_shape", "cropped_shape", "cropped_coordinates"])
 
     print("\nPreProcess training set...")
     for image_name in images_names:
@@ -384,17 +374,9 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
 
         # step 2: resample to median spacing
         raw_image_spacing = image_vol.GetSpacing()
-        cropped_shape = image_cropped.shape
-        new_shape = np.round((np.array([raw_image_spacing[2] / median_spacing[2],
-                                        raw_image_spacing[0] / median_spacing[0],
-                                        raw_image_spacing[1] / median_spacing[1]]).astype(float) * cropped_shape)).astype(int)
+        image_resampled = image_resample(image_cropped, raw_image_spacing, median_spacing, 3, True)
+        label_resampled = image_resample(label_cropped, raw_image_spacing, median_spacing, 0, True)
 
-        if np.any(new_shape != cropped_shape):
-            image_resampled = image_resize(image_cropped, new_shape, order=3, is_anisotropic=True)
-            label_resampled = image_resize(label_cropped, new_shape, order=0, is_anisotropic=True)
-        else:
-            image_resampled = image_cropped
-            label_resampled = label_cropped
         assert image_resampled.shape == label_resampled.shape
         image_resampled = image_resampled.astype(image_dtype)
         label_resampled = label_resampled.astype(label_dtype)
@@ -416,7 +398,7 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
         np.save(label_save_path.replace("nii.gz", "npy"), label_resampled)
 
         samples_infos.append([image_save_path.replace("nii.gz", "npy"), label_save_path.replace("nii.gz", "npy"),
-                              raw_image_spacing, image_resampled.shape, crop_coord, image_cropped.shape])
+                              raw_image_spacing, image_array.shape, image_cropped.shape, crop_coord])
 
     # record the information about save path and cropping coordinates in csv file
     # np.random.shuffle(samples_infos)
