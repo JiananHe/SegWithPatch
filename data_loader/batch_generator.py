@@ -36,21 +36,34 @@ class MyDataloader(SlimDataLoaderBase):
         self.num_class = len(class_weight)
         self.current_position = 0
         self.was_initialized = False
+        
+        # set the range of weights for sampling, ignore background
+        self.organ_weight = class_weight[1:]
+        self.organ_weight /= np.sum(self.organ_weight)
+        self.organ_weight_range = np.zeros(self.num_class)
+        for i in range(1, len(self.organ_weight)+1):
+            self.organ_weight_range[i] = self.organ_weight_range[i-1]+self.organ_weight[i-1]
 
     def reset(self):
+        if self.was_initialized:
+            print("total counts for every class: ", MyDataloader.current_counts)
         self.current_position = self.thread_id
         self.was_initialized = True
 
     def calc_sample_class_id(self):
-        class_weight_sorted = sorted(self.class_weight)
-        class_weight_order = [class_weight_sorted.index(i) for i in self.class_weight]
-        count_sorted = sorted(MyDataloader.current_counts)
-        count_order = [count_sorted.index(i) for i in MyDataloader.current_counts]
+        current_random = np.random.rand()
+        for r in range(len(self.organ_weight)):
+            if current_random >= self.organ_weight_range[r] and current_random < self.organ_weight_range[r+1]:
+                return r + 1
+        
+        # class_weight_sorted = sorted(self.class_weight)
+        # class_weight_order = [class_weight_sorted.index(i) for i in self.class_weight]
+        # count_sorted = sorted(MyDataloader.current_counts)
+        # count_order = [count_sorted.index(i) for i in MyDataloader.current_counts]
 
-        diff_order = np.subtract(class_weight_order, count_order)
-        # assert np.sum(diff_order) == 0
-        under_sampled_id = np.argwhere(np.array(diff_order) > 0).squeeze()
-        return np.random.choice(under_sampled_id)
+        # diff_order = np.subtract(class_weight_order, count_order)
+        # under_sampled_id = np.argwhere(np.array(diff_order) > 0).squeeze()
+        # return np.random.choice(under_sampled_id)
 
     def generate_train_batch(self):
         if not self.was_initialized:
@@ -158,13 +171,13 @@ def get_train_transform():
 #     )
 
     # now we mirror along all axes
-    tr_transforms.append(MirrorTransform(axes=(0, 1, 2)))
+    # tr_transforms.append(MirrorTransform(axes=(0, 1, 2)))
     
     # gamma transform. This is a nonlinear transformation of intensity values
     # (https://en.wikipedia.org/wiki/Gamma_correction)
-    tr_transforms.append(GammaTransform(gamma_range=(0.7, 1.5), invert_image=False, per_channel=True, p_per_sample=0.15))
+    tr_transforms.append(GammaTransform(gamma_range=(0.7, 1.5), invert_image=False, per_channel=True, p_per_sample=0.2))
     # we can also invert the image, apply the transform and then invert back
-    tr_transforms.append(GammaTransform(gamma_range=(0.7, 1.5), invert_image=True, per_channel=True, p_per_sample=0.15))
+    tr_transforms.append(GammaTransform(gamma_range=(0.7, 1.5), invert_image=True, per_channel=True, p_per_sample=0.2))
     
     tr_transforms.append(SimulateLowResolutionTransform(zoom_range=(0.5, 1), per_channel=True,
                                                      p_per_channel=0.5,

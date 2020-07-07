@@ -432,7 +432,7 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
 if __name__ == "__main__":
     raw_img_path = os.path.join(raw_path, "img")
     raw_lbl_path = os.path.join(raw_path, "label")
-
+    print(raw_lbl_path)
     train_dataset_preprocess(raw_img_path, raw_lbl_path)
     # dataset_info = json.load(open(dataset_info_file, "r"))
     # intensity_clip_norm(dataset_info["clip_min_intensity"], dataset_info["clip_max_intensity"], dataset_info["mean"], dataset_info["variance"])

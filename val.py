@@ -190,7 +190,7 @@ def dataset_validation(net, val_samples_info, cal_acc=True, show_sample_dice=Fal
 if __name__ == "__main__":
     net = get_net(1)
     net = torch.nn.DataParallel(net).cuda()
-    net.load_state_dict(torch.load("./module/td_unet66-0.151-0.357.pth"))
+    net.load_state_dict(torch.load("td_unet59-0.225-0.580.pth"))
     net.eval()
 
     _, _, val_samples_info, val_samples_name = split_train_val()

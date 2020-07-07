@@ -36,7 +36,7 @@ def dataset_prediction(net, dataset_folder, format):
 if __name__ == "__main__":
     net = get_net(1)
     net = torch.nn.DataParallel(net).cuda()
-    net.load_state_dict(torch.load("./module/td_unet66-0.151-0.357.pth"))
+    net.load_state_dict(torch.load("td_unet59-0.225-0.580.pth"))
     net.eval()
 
     dataset_prediction(net, "../PrivateData/", "dcm")
