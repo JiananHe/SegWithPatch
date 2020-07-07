@@ -122,11 +122,10 @@ if __name__ == "__main__":
 
         # update organs weight according to dices
         class_weight = 1.0 - np.array(val_cls_mean_dice)
-        class_weight = class_weight / np.max(class_weight)
         os.system('echo %s' % "---------------------------------------------\n")
 
         # 保存模型参数
-        if epoch % 5 is 1:
+        if epoch % 2 is 1:
             model_save_name = "%s%d-%.3f-%.3f.pth" % (net_name, epoch, mean_loss, val_mean_dice)
             torch.save(net.state_dict(), "./module/" + model_save_name)
             print("model saved as:  %s" % model_save_name)

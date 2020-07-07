@@ -72,7 +72,7 @@ def save_volume(save_array, volume_properties, save_path):
     sitk.WriteImage(save_volume, save_path)
 
 
-def crop_roi(image, label):
+def crop_roi(image, label, crop_with_label=True):
     """
     crop the image and label to the roi
     :param image: volume of CT image
@@ -82,24 +82,27 @@ def crop_roi(image, label):
     assert image.shape == label.shape
     s = image.shape
 
-    z_min = np.min(np.where(label != 0)[0])
-    z_min = z_min - padding_size[0] // 2 if z_min - padding_size[0] // 2 > 0 else 0
-    z_max = np.max(np.where(label != 0)[0]) + 1
-    z_max = z_max + padding_size[0] // 2 if z_max + padding_size[0] // 2 < s[0] else s[0]
+    if crop_with_label:
+        z_min = np.min(np.where(label != 0)[0])
+        z_min = z_min - padding_size[0] // 2 if z_min - padding_size[0] // 2 > 0 else 0
+        z_max = np.max(np.where(label != 0)[0]) + 1
+        z_max = z_max + padding_size[0] // 2 if z_max + padding_size[0] // 2 < s[0] else s[0]
 
-    x_min = np.min(np.where(label != 0)[1])
-    x_min = x_min - padding_size[1] // 2 if x_min - padding_size[1] // 2 > 0 else 0
-    x_max = np.max(np.where(label != 0)[1]) + 1
-    x_max = x_max + padding_size[1] // 2 if x_max + padding_size[1] // 2 < s[1] else s[1]
+        x_min = np.min(np.where(label != 0)[1])
+        x_min = x_min - padding_size[1] // 2 if x_min - padding_size[1] // 2 > 0 else 0
+        x_max = np.max(np.where(label != 0)[1]) + 1
+        x_max = x_max + padding_size[1] // 2 if x_max + padding_size[1] // 2 < s[1] else s[1]
 
-    y_min = np.min(np.where(label != 0)[2])
-    y_min = y_min - padding_size[2] // 2 if y_min - padding_size[2] // 2 > 0 else 0
-    y_max = np.max(np.where(label != 0)[2]) + 1
-    y_max = y_max + padding_size[2] // 2 if y_max + padding_size[2] // 2 < s[2] else s[2]
+        y_min = np.min(np.where(label != 0)[2])
+        y_min = y_min - padding_size[2] // 2 if y_min - padding_size[2] // 2 > 0 else 0
+        y_max = np.max(np.where(label != 0)[2]) + 1
+        y_max = y_max + padding_size[2] // 2 if y_max + padding_size[2] // 2 < s[2] else s[2]
 
-    image_cropped = image[z_min:z_max, x_min:x_max, y_min:y_max]
-    label_cropped = label[z_min:z_max, x_min:x_max, y_min:y_max]
-    return image_cropped, label_cropped, [z_min, z_max, x_min, x_max, y_min, y_max]
+        image_cropped = image[z_min:z_max, x_min:x_max, y_min:y_max]
+        label_cropped = label[z_min:z_max, x_min:x_max, y_min:y_max]
+        return image_cropped, label_cropped, [z_min, z_max, x_min, x_max, y_min, y_max]
+    else:  # to do
+        return image, label, [0, s[0], 0, s[1], 0, s[2]]
 
 
 def register_dataset(fixed_image_name):
@@ -370,7 +373,7 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
         assert image_array.shape == label_array.shape, "the shapes of image and label in %s are different" % image_name
 
         # step 1: crop to roi
-        image_cropped, label_cropped, crop_coord = crop_roi(image_array, label_array)
+        image_cropped, label_cropped, crop_coord = crop_roi(image_array, label_array, False)  # No cropping
 
         # step 2: resample to median spacing
         raw_image_spacing = image_vol.GetSpacing()
@@ -432,7 +435,7 @@ def train_dataset_preprocess(images_path, labels_path, format='nii'):
 if __name__ == "__main__":
     raw_img_path = os.path.join(raw_path, "img")
     raw_lbl_path = os.path.join(raw_path, "label")
-
+    print(raw_lbl_path)
     train_dataset_preprocess(raw_img_path, raw_lbl_path)
     # dataset_info = json.load(open(dataset_info_file, "r"))
     # intensity_clip_norm(dataset_info["clip_min_intensity"], dataset_info["clip_max_intensity"], dataset_info["mean"], dataset_info["variance"])

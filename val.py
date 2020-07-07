@@ -142,7 +142,11 @@ def save_seg(predict_array, predict_spacing, ct_name, raw_spacing, shape_before_
         pred_vol.SetDirection(kwargs["vol_direction"])
     if kwargs["vol_origin"]:
         pred_vol.SetOrigin(kwargs["vol_origin"])
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> a0ec928e16e44b1681d49301edb2adbfd5659204
     saved_name = ct_name if len(ct_name) > 6 and ct_name[-7:] == '.nii.gz' else ct_name + '.nii.gz'
     sitk.WriteImage(pred_vol, os.path.join('./prediction', saved_name))
 
@@ -190,7 +194,11 @@ def dataset_validation(net, val_samples_info, cal_acc=True, show_sample_dice=Fal
 if __name__ == "__main__":
     net = get_net(1)
     net = torch.nn.DataParallel(net).cuda()
+<<<<<<< HEAD
     net.load_state_dict(torch.load("./module/td_unet66-0.151-0.357.pth"))
+=======
+    net.load_state_dict(torch.load("td_unet59-0.225-0.580.pth"))
+>>>>>>> a0ec928e16e44b1681d49301edb2adbfd5659204
     net.eval()
 
     _, _, val_samples_info, val_samples_name = split_train_val()

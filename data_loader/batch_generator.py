@@ -14,16 +14,9 @@ from utils import *
 
 
 class MyDataloader(SlimDataLoaderBase):
-    current_counts = [0] * (organs_properties["num_organ"] + 1)
+    # current_counts = [0] * (organs_properties["num_organ"] + 1)
 
     def __init__(self, class_weight, num_threads_in_mt):
-        """
-        data loader
-        :param is_train: dataloader for training set or validation set
-        :param folder: 0 - 4 (5-folder cross validation)
-        :param patch_size: a tuple
-        :param batch_size: int
-        """
         super(MyDataloader, self).__init__(None, num_patches_volume * num_volumes_batch, num_threads_in_mt)
         # assert 0 <= folder <= 4, "only support 5-folder cross validation"
 
@@ -36,29 +29,43 @@ class MyDataloader(SlimDataLoaderBase):
         self.num_class = len(class_weight)
         self.current_position = 0
         self.was_initialized = False
+        self.batch_size
+        
+        # set the range of weights for sampling, ignore background
+        # self.organ_weight = class_weight[1:]
+        # self.organ_weight /= np.sum(self.organ_weight)
+        # self.organ_weight_range = np.zeros(self.num_class)
+        # for i in range(1, len(self.organ_weight)+1):
+        #     self.organ_weight_range[i] = self.organ_weight_range[i-1]+self.organ_weight[i-1]
 
-    def reset(self):
-        self.current_position = self.thread_id
-        self.was_initialized = True
+#     def reset(self):
+#         if self.was_initialized:
+#             print("total counts for every class: ", MyDataloader.current_counts)
+#         self.current_position = self.thread_id
+#         self.was_initialized = True
 
-    def calc_sample_class_id(self):
-        class_weight_sorted = sorted(self.class_weight)
-        class_weight_order = [class_weight_sorted.index(i) for i in self.class_weight]
-        count_sorted = sorted(MyDataloader.current_counts)
-        count_order = [count_sorted.index(i) for i in MyDataloader.current_counts]
+#     def calc_sample_class_id(self):
+#         current_random = np.random.rand()
+#         for r in range(len(self.organ_weight)):
+#             if current_random >= self.organ_weight_range[r] and current_random < self.organ_weight_range[r+1]:
+#                 return r + 1
+        
+        # class_weight_sorted = sorted(self.class_weight)
+        # class_weight_order = [class_weight_sorted.index(i) for i in self.class_weight]
+        # count_sorted = sorted(MyDataloader.current_counts)
+        # count_order = [count_sorted.index(i) for i in MyDataloader.current_counts]
 
-        diff_order = np.subtract(class_weight_order, count_order)
-        # assert np.sum(diff_order) == 0
-        under_sampled_id = np.argwhere(np.array(diff_order) > 0).squeeze()
-        return np.random.choice(under_sampled_id)
+        # diff_order = np.subtract(class_weight_order, count_order)
+        # under_sampled_id = np.argwhere(np.array(diff_order) > 0).squeeze()
+        # return np.random.choice(under_sampled_id)
 
     def generate_train_batch(self):
-        if not self.was_initialized:
-            self.reset()
-        self.current_position = self.current_position + self.number_of_threads_in_multithreaded
-        if self.current_position > iteration_every_epoch + (self.number_of_threads_in_multithreaded - 1):
-            self.reset()
-            raise StopIteration
+#         if not self.was_initialized:
+#             self.reset()
+#         self.current_position = self.current_position + self.number_of_threads_in_multithreaded
+#         if self.current_position > iteration_every_epoch + (self.number_of_threads_in_multithreaded - 1):
+#             self.reset()
+#             raise StopIteration
 
         data_patches = []
         seg_patches = []
@@ -140,31 +147,31 @@ def get_train_transform():
     # Here we use the new SpatialTransform_2 which uses a new way of parameterizing elastic_deform
     # We use all spatial transformations with a probability of 0.2 per sample. This means that 1 - (1 - 0.1) ** 3 = 27%
     # of samples will be augmented, the rest will just be cropped
-#     tr_transforms.append(
-#         SpatialTransform_2(
-#             patch_size, 0,
-#             do_elastic_deform=False, deformation_scale=(0.25, 0.5),
-#             do_rotation=False,
-#             angle_x=(- 15 / 360. * 2 * np.pi, 15 / 360. * 2 * np.pi),
-#             angle_y=(- 15 / 360. * 2 * np.pi, 15 / 360. * 2 * np.pi),
-#             angle_z=(- 15 / 360. * 2 * np.pi, 15 / 360. * 2 * np.pi),
-#             do_scale=False, scale=(0.75, 1.25),
-#             border_mode_data='constant', border_cval_data=0,
-#             border_mode_seg='constant', border_cval_seg=0,
-#             order_seg=1, order_data=3,
-#             random_crop=False,
-#             p_el_per_sample=0, p_rot_per_sample=0.1, p_scale_per_sample=0.1
-#         )
-#     )
+    tr_transforms.append(
+        SpatialTransform_2(
+            patch_size, patch_center_dist_from_border=None,
+            do_elastic_deform=False, deformation_scale=(0.25, 0.5),
+            do_rotation=True,
+            angle_x=(- 15 / 360. * 2 * np.pi, 15 / 360. * 2 * np.pi),
+            angle_y=(- 15 / 360. * 2 * np.pi, 15 / 360. * 2 * np.pi),
+            angle_z=(- 15 / 360. * 2 * np.pi, 15 / 360. * 2 * np.pi),
+            do_scale=True, scale=(0.85, 1.25),
+            border_mode_data='constant', border_cval_data=0,
+            border_mode_seg='constant', border_cval_seg=-1,
+            order_seg=1, order_data=3,
+            random_crop=False,
+            p_el_per_sample=0, p_rot_per_sample=0.2, p_scale_per_sample=0.2
+        )
+    )
 
     # now we mirror along all axes
-    tr_transforms.append(MirrorTransform(axes=(0, 1, 2)))
+    # tr_transforms.append(MirrorTransform(axes=(0, 1, 2)))
     
     # gamma transform. This is a nonlinear transformation of intensity values
     # (https://en.wikipedia.org/wiki/Gamma_correction)
-    tr_transforms.append(GammaTransform(gamma_range=(0.7, 1.5), invert_image=False, per_channel=True, p_per_sample=0.15))
+    tr_transforms.append(GammaTransform(gamma_range=(0.7, 1.5), invert_image=False, per_channel=True, p_per_sample=0.2))
     # we can also invert the image, apply the transform and then invert back
-    tr_transforms.append(GammaTransform(gamma_range=(0.7, 1.5), invert_image=True, per_channel=True, p_per_sample=0.15))
+    tr_transforms.append(GammaTransform(gamma_range=(0.7, 1.5), invert_image=True, per_channel=True, p_per_sample=0.2))
     
     tr_transforms.append(SimulateLowResolutionTransform(zoom_range=(0.5, 1), per_channel=True,
                                                      p_per_channel=0.5,

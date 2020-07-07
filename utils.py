@@ -10,33 +10,32 @@ from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage.interpolation import map_coordinates
 
 project_root_path = os.path.abspath(os.path.dirname(__file__))
-raw_path = "/home/hja/Projects/OrgansSegment/BTCA/RawData/Training"
+raw_path = "/home/hja/Projects/OrgansSegment/Data/BTCA/RawData/Training"
 preprocessed_save_path = os.path.join(project_root_path, "samples/BTCV/Training")
 samples_info_file = os.path.join(project_root_path, "info_files/training_samples_info.csv")
 dataset_info_file = os.path.join(project_root_path, "info_files/trainset_info.json")
 
-num_steps_for_backward = 6  # how many training steps between two backward?
 # number of patches in a batch = num_patches_volume * num_volumes_batch
 num_patches_volume = 2
-num_volumes_batch = 2
+num_volumes_batch = 1
 # validation batch size
-val_batch_size = 8
+val_batch_size = 4
 
-padding_size = np.array([20, 40, 40])
-patch_size = np.array([48, 160, 160])
+padding_size = np.array([20, 60, 60])
+patch_size = np.array([48, 192, 192])
 crop_size = np.array([i * 3 / 2 for i in patch_size], dtype=np.int)
 
 resume_training = False
-module_dir = './module/td_unet80-0.668-0.601.pth'
+module_dir = './module/td_unet6-0.230-0.539.pth'
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '1, 3'
+os.environ['CUDA_VISIBLE_DEVICES'] = '2,3'
 torch.backends.cudnn.benchmark = True
-Epoch = 1000
+Epoch = 600
 iteration_every_epoch = 250
 # 梯度累计，即每grad_accum_steps次iteration更新一次网络参数
 grad_accum_steps = 2
-inital_learning_rate = 1e-2
-data_loader_processes = 4
+inital_learning_rate = 1e-3
+data_loader_processes = 2
 # the weight for the batch from pseudo labels
 batch_low_confidence_weight = 0.2
 
@@ -45,7 +44,7 @@ organs_properties = {'organs_name': ['spleen', 'rkidny', 'lkidney', 'gallbladder
                                      'aorta', 'vena', 'vein', 'pancreas', 'rgland', 'lgland'],
                      'organs_size': {1: 41254, 2: 21974, 3: 21790, 4: 3814, 5: 2182, 6: 236843, 7: 61189, 8: 13355,
                                      9: 11960, 10: 4672, 11: 11266, 12: 595, 13: 724},
-                     'organs_weight': [1.0, 1.0, 2.0, 2.0, 2.0, 1.0, 3.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0],
+                     'organs_weight': [3.0, 4.0, 3.0, 4.0, 5.0, 1.0, 2.0, 1.0, 2.0, 2.0, 2.0, 5.0, 5.0],
                      'num_organ': 13,
                      'sample_path': r'D:\Projects\OrgansSegment\SegWithPatch\samples\Training'}
 
