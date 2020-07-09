@@ -1,7 +1,7 @@
 from val import *
 from utils import *
 
-
+# Note that the data used for prediction should have the same anatomical direction as the data in training set
 def dataset_prediction(net, dataset_folder, format):
     assert format == 'dcm' or format == 'nii'
     dataset_info = json.load(open(dataset_info_file, 'r'))
@@ -36,7 +36,7 @@ def dataset_prediction(net, dataset_folder, format):
 if __name__ == "__main__":
     net = get_net(1)
     net = torch.nn.DataParallel(net).cuda()
-    net.load_state_dict(torch.load("./module/td_unet66-0.151-0.357.pth"))
+    net.load_state_dict(torch.load("./module/td_unet39-0.279-0.256.pth"))
     net.eval()
 
-    dataset_prediction(net, "../PrivateData/", "dcm")
+    dataset_prediction(net, "../Data/PrivateData/", "nii")

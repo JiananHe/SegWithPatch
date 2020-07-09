@@ -108,24 +108,25 @@ if __name__ == "__main__":
             % (epoch, dc_mean_loss, ce_mean_loss, mean_loss, (time() - epoch_start) / 60)
         os.system('echo %s' % s)
 
-        # valset accuracy
-        os.system('echo %s' % "--------evaluation on validation set----------")
-        val_eval_start = time()
-        val_cls_mean_dice = dataset_validation(net, val_samples_info, crop_roi=True, show_sample_dice=True)
-        writer.add_scalars('valset orgs dice',
-                           {name: val_cls_mean_dice[i] for i, name in enumerate(classes_name)}, epoch)
+        # 模型验证
+        if epoch % 2 is 1:
+            os.system('echo %s' % "--------evaluation on validation set----------")
+            val_eval_start = time()
+            val_cls_mean_dice = dataset_validation(net, val_samples_info, crop_roi=True, show_sample_dice=True)
+            writer.add_scalars('valset orgs dice',
+                               {name: val_cls_mean_dice[i] for i, name in enumerate(classes_name)}, epoch)
 
-        val_mean_dice = np.mean(val_cls_mean_dice)
-        s = "mean dice: %.3f, eval time: %.3f min" % (val_mean_dice, (time() - val_eval_start) / 60)
-        os.system('echo %s' % s)
-        writer.add_scalar("valset mean dice", val_mean_dice, epoch)
+            val_mean_dice = np.mean(val_cls_mean_dice)
+            s = "mean dice: %.3f, eval time: %.3f min" % (val_mean_dice, (time() - val_eval_start) / 60)
+            os.system('echo %s' % s)
+            writer.add_scalar("valset mean dice", val_mean_dice, epoch)
 
-        # update organs weight according to dices
-        # class_weight = 1.0 - np.array(val_cls_mean_dice)
-        os.system('echo %s' % "---------------------------------------------\n")
+            # update organs weight according to dices
+            # class_weight = 1.0 - np.array(val_cls_mean_dice)
+            os.system('echo %s' % "---------------------------------------------\n")
 
         # 保存模型参数
-        if epoch % 2 is 1:
+#         if epoch % 2 is 1:
             model_save_name = "%s%d-%.3f-%.3f.pth" % (net_name, epoch, mean_loss, val_mean_dice)
             torch.save(net.state_dict(), "./module/" + model_save_name)
             print("model saved as:  %s" % model_save_name)
