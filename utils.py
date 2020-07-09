@@ -9,6 +9,7 @@ from skimage.transform import resize
 from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage.interpolation import map_coordinates
 
+# path
 project_root_path = os.path.abspath(os.path.dirname(__file__))
 raw_path = "/home/hja/Projects/OrgansSegment/Data/BTCA/RawData/Training"
 preprocessed_save_path = os.path.join(project_root_path, "samples/BTCV/Training")
@@ -16,10 +17,18 @@ samples_info_file = os.path.join(project_root_path, "info_files/training_samples
 dataset_info_file = os.path.join(project_root_path, "info_files/trainset_info.json")
 
 # number of patches in a batch = num_patches_volume * num_volumes_batch
-num_patches_volume = 2
-num_volumes_batch = 1
-# validation batch size
+num_patches_volume = 1
+num_volumes_batch = 2
 val_batch_size = 4
+
+# data argument
+rotation_x = 15 / 360. * 2 * np.pi
+rotation_y = 15 / 360. * 2 * np.pi
+rotation_z = 5 / 360. * 2 * np.pi
+range_scale = (0.85, 1.25)
+data_pad_mode = 'constant'
+data_pad_val = 0
+seg_pad_val = -1
 
 padding_size = np.array([20, 60, 60])
 patch_size = np.array([48, 192, 192])
@@ -35,9 +44,11 @@ iteration_every_epoch = 250
 # 梯度累计，即每grad_accum_steps次iteration更新一次网络参数
 grad_accum_steps = 2
 inital_learning_rate = 1e-3
-data_loader_processes = 2
+
+augmenter_processes = 8
+dataloader_threads = 8
 # the weight for the batch from pseudo labels
-batch_low_confidence_weight = 0.2
+# batch_low_confidence_weight = 0.2
 
 # 器官属性
 organs_properties = {'organs_name': ['spleen', 'rkidny', 'lkidney', 'gallbladder', 'esophagus', 'liver', 'stomach',
@@ -53,7 +64,7 @@ num_organ = organs_properties['num_organ']
 organs_size = organs_properties['organs_size']
 classes_name = ["bg"] + organs_name
 class_weight = np.array([1] + organs_properties["organs_weight"])
-class_weight = class_weight / np.max(class_weight)
+# class_weight = class_weight / np.max(class_weight)
 
 network_configure = {'kernel_sizes': [[1, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3]],
                      'features_channels': [32, 64, 128, 256, 320],
@@ -107,7 +118,30 @@ def calc_weight_matrix(ps, sigma_scale=1. / 8):
     return gaussian_importance_map
 
 
-weight_matrix = calc_weight_matrix(patch_size)
+# weight_matrix = calc_weight_matrix(patch_size)
+
+
+def get_generator_patch_size(final_patch_size, rot_x, rot_y, rot_z, scale_range):
+    if isinstance(rot_x, (tuple, list)):
+        rot_x = max(np.abs(rot_x))
+    if isinstance(rot_y, (tuple, list)):
+        rot_y = max(np.abs(rot_y))
+    if isinstance(rot_z, (tuple, list)):
+        rot_z = max(np.abs(rot_z))
+    rot_x = min(90 / 360 * 2. * np.pi, rot_x)
+    rot_y = min(90 / 360 * 2. * np.pi, rot_y)
+    rot_z = min(90 / 360 * 2. * np.pi, rot_z)
+    from batchgenerators.augmentations.utils import rotate_coords_3d, rotate_coords_2d
+    coords = np.array(final_patch_size)
+    final_shape = np.copy(coords)
+    if len(coords) == 3:
+        final_shape = np.max(np.vstack((np.abs(rotate_coords_3d(coords, rot_x, 0, 0)), final_shape)), 0)
+        final_shape = np.max(np.vstack((np.abs(rotate_coords_3d(coords, 0, rot_y, 0)), final_shape)), 0)
+        final_shape = np.max(np.vstack((np.abs(rotate_coords_3d(coords, 0, 0, rot_z)), final_shape)), 0)
+    elif len(coords) == 2:
+        final_shape = np.max(np.vstack((np.abs(rotate_coords_2d(coords, rot_x)), final_shape)), 0)
+    final_shape /= min(scale_range)
+    return final_shape.astype(int)
 
 
 def read_dicom(path):
@@ -255,4 +289,6 @@ if __name__ == "__main__":
     # for i in val_samples_info:
     #     print(i)
 
-    print(compute_steps_for_sliding_window(patch_size, (58, 221, 351)))
+    # print(compute_steps_for_sliding_window(patch_size, (58, 221, 351)))
+
+    print(get_generator_patch_size(patch_size, rotation_x, rotation_y, rotation_z, range_scale))

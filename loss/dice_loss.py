@@ -94,22 +94,32 @@ class DiceLoss(nn.Module):
             target = target.long()
             y_onehot = torch.zeros(predict.shape).cuda(predict.device.index)
             y_onehot.scatter_(1, target, 1)
+        predict = torch.softmax(predict, dim=1)
 
-        predict = torch.sigmoid(predict)
+        # axes = tuple(range(2, len(predict.size())))
+        # numer = torch.sum((predict * y_onehot), dim=axes)
+        # denom = torch.sum(predict + y_onehot, dim=axes)  # (N, C)
+        #
+        # loss = 0.0
+        # counts = 0
+        # for i in range(num_organ+1):
+        #     if (target == i).any():
+        #         loss += 1 - (2 * numer[:, i] + self.smooth) / (denom[:, i] + self.smooth)
+        #         counts += 1
+        #     else:
+        #         continue
+        # loss /= counts
+        # return loss.mean()
+
         axes = tuple(range(2, len(predict.size())))
-        numer = torch.sum((predict * y_onehot), dim=axes)
-        denom = torch.sum(predict + y_onehot, dim=axes)  # (N, C)
+        class_voxel_weight = 1 / (torch.sum(target, axes).type(torch.float32) + self.smooth)**2  # (N, C)
+        intersection = class_voxel_weight * torch.sum(predict * y_onehot, dim=axes)
+        union = class_voxel_weight * (torch.sum(predict, dim=axes) + torch.sum(y_onehot, dim=axes))
 
-        loss = 0.0
-        counts = 0
-        for i in range(num_organ+1):
-            if (target == i).any():
-                loss += 1 - (2 * numer[:, i] + self.smooth) / (denom[:, i] + self.smooth)
-                counts += 1
-            else:
-                continue
-        loss /= counts
+        loss = 1 - 2 * (torch.sum(intersection, dim=1) + self.smooth) / (torch.sum(union, dim=1) + self.smooth)  # (N,)
         return loss.mean()
+        # numer = torch.sum((predict * y_onehot), dim=axes)
+        # denom = torch.sum(predict + y_onehot, dim=axes)  # (N, C)
 
 
 if __name__ == "__main__":

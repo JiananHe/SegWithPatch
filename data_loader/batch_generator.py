@@ -16,7 +16,7 @@ from utils import *
 class MyDataloader(SlimDataLoaderBase):
     # current_counts = [0] * (organs_properties["num_organ"] + 1)
 
-    def __init__(self, class_weight, num_threads_in_mt):
+    def __init__(self, class_weight=None, num_threads_in_mt=None):
         super(MyDataloader, self).__init__(None, num_patches_volume * num_volumes_batch, num_threads_in_mt)
         # assert 0 <= folder <= 4, "only support 5-folder cross validation"
 
@@ -25,12 +25,12 @@ class MyDataloader(SlimDataLoaderBase):
         print("samples for training: ", train_samples_name)
         self._data = train_samples_info
 
-        self.class_weight = class_weight
-        self.num_class = len(class_weight)
-        self.current_position = 0
-        self.was_initialized = False
-        self.batch_size
-        
+        # self.class_weight = class_weight
+        self.num_class = num_organ + 1
+        self.generator_patch_size = get_generator_patch_size(patch_size, rotation_x, rotation_y, rotation_z, range_scale)
+        # self.current_position = 0
+        # self.was_initialized = False
+
         # set the range of weights for sampling, ignore background
         # self.organ_weight = class_weight[1:]
         # self.organ_weight /= np.sum(self.organ_weight)
@@ -38,17 +38,17 @@ class MyDataloader(SlimDataLoaderBase):
         # for i in range(1, len(self.organ_weight)+1):
         #     self.organ_weight_range[i] = self.organ_weight_range[i-1]+self.organ_weight[i-1]
 
-#     def reset(self):
-#         if self.was_initialized:
-#             print("total counts for every class: ", MyDataloader.current_counts)
-#         self.current_position = self.thread_id
-#         self.was_initialized = True
-
-#     def calc_sample_class_id(self):
-#         current_random = np.random.rand()
-#         for r in range(len(self.organ_weight)):
-#             if current_random >= self.organ_weight_range[r] and current_random < self.organ_weight_range[r+1]:
-#                 return r + 1
+    # def reset(self):
+    #     if self.was_initialized:
+    #         print("total counts for every class: ", MyDataloader.current_counts)
+    #     self.current_position = self.thread_id
+    #     self.was_initialized = True
+    #
+    # def calc_sample_class_id(self):
+    #     current_random = np.random.rand()
+    #     for r in range(len(self.organ_weight)):
+    #         if current_random >= self.organ_weight_range[r] and current_random < self.organ_weight_range[r+1]:
+    #             return r + 1
         
         # class_weight_sorted = sorted(self.class_weight)
         # class_weight_order = [class_weight_sorted.index(i) for i in self.class_weight]
@@ -60,17 +60,17 @@ class MyDataloader(SlimDataLoaderBase):
         # return np.random.choice(under_sampled_id)
 
     def generate_train_batch(self):
-#         if not self.was_initialized:
-#             self.reset()
-#         self.current_position = self.current_position + self.number_of_threads_in_multithreaded
-#         if self.current_position > iteration_every_epoch + (self.number_of_threads_in_multithreaded - 1):
-#             self.reset()
-#             raise StopIteration
+        # if not self.was_initialized:
+        #     self.reset()
+        # self.current_position = self.current_position + self.number_of_threads_in_multithreaded
+        # if self.current_position > iteration_every_epoch + (self.number_of_threads_in_multithreaded - 1):
+        #     self.reset()
+        #     raise StopIteration
 
         data_patches = []
         seg_patches = []
         image_names = []
-        batch_class_ids = []
+        # batch_class_ids = []
         for i in range(num_volumes_batch):
             selected_ids = np.random.choice(range(len(self._data)), 1)[0]
             selected_samples = self._data[selected_ids]
@@ -81,59 +81,68 @@ class MyDataloader(SlimDataLoaderBase):
                 # select a patch in which the class with the highest weight is contained
                 # class_id = np.argmax(self.class_weight - current_weight) + 1
                 # class_id = np.random.choice(list(range(1, self.num_class)))
-                class_id = self.calc_sample_class_id()
-                data_patch, seg_patch, contained_ids = self.crop_patch(image, segmentation, class_id)
+                # class_id = self.calc_sample_class_id()
+
+                if i * num_patches_volume + j >= 0.5 * self.batch_size:
+                    force_fg = True
+                else:
+                    force_fg = False
+                data_patch, seg_patch = self.crop_patch(image, segmentation, force_fg)
+
                 data_patches.append(data_patch[None])
                 seg_patches.append(seg_patch[None])
                 image_names.append(selected_samples[0].split("/")[-1])
-                
-                batch_class_ids += contained_ids
-                for id in contained_ids:
-                    MyDataloader.current_counts[id] += 1
+                # batch_class_ids += contained_ids
+                # for id in contained_ids:
+                #     MyDataloader.current_counts[id] += 1
+
         data_patches = np.array(data_patches).astype(np.float32)
         seg_patches = np.array(seg_patches).astype(np.float32)
-        return {'data': data_patches, 'seg': seg_patches, 'image_names': image_names, 'batch_class_ids': batch_class_ids}
+        return {'data': data_patches, 'seg': seg_patches, 'image_names': image_names}
 
-    def crop_patch(self, image, label, class_id):
-        """
-        crop patch from image and label, the centre of the patch should be the class_id organ
-        :param self:
-        :param image:
-        :param label:
-        :param class_id: the class with the highest weight
-        :return: image patch, label patch, the ids of organs witch covering at least 10% pixels in the sampled patch
-        """
+    def crop_patch(self, image, label, force_fg):
         shape = image.shape
-        assert image.shape == label.shape
-        # find a point as the centre of patch
-        class_points = np.argwhere(label == class_id)
-        # class_points = list(filter(lambda point:
-        #                       np.all([crop_size[0]//2 <= point[0] <= s[0] - crop_size[0]//2,
-        #                               crop_size[1]//2 <= point[1] <= s[1] - crop_size[1]//2,
-        #                               crop_size[2]//2 <= point[2] <= s[2] - crop_size[2]//2]), class_points))
-        if len(class_points) == 0:
-            class_id = np.random.choice(label[label != 0])
-            class_points = np.argwhere(label == class_id)
+        crop_size = self.generator_patch_size
+        # select the centre of patch
+        if not force_fg:
+            patch_centre_z = np.random.randint(0, shape[0])
+            patch_centre_x = np.random.randint(0, shape[1])
+            patch_centre_y = np.random.randint(0, shape[2])
+        else:
+            # select one class contained in current volume randomly and
+            # then pick one voxel belongs to the selected class randomly
+            contained_class = np.unique(label[label != 0])
+            selected_class = np.random.choice(contained_class)
+            voxels_of_class = np.argwhere(label == selected_class)
+            selected_voxel = voxels_of_class[np.random.choice(len(voxels_of_class))]
+            patch_centre_z, patch_centre_x, patch_centre_y = selected_voxel
 
-        centre_point = class_points[np.random.choice(range(len(class_points)))]
-        # shift to avoid crossing border
-        boder_margin = [i//2 for i in patch_size]
-        centre_point = [centre_point[i] if centre_point[i] <= s - boder_margin[i] else s - boder_margin[i] for i, s in enumerate(shape)]
-        centre_point = [centre_point[i] if centre_point[i] >= boder_margin[i] else boder_margin[i] for i, s in enumerate(shape)]
-
-        slice_z = slice(centre_point[0] - boder_margin[0], centre_point[0] + boder_margin[0])
-        slice_x = slice(centre_point[1] - boder_margin[1], centre_point[1] + boder_margin[1])
-        slice_y = slice(centre_point[2] - boder_margin[2], centre_point[2] + boder_margin[2])
+        crop_radius = [i // 2 for i in crop_size]
+        slice_z = slice(max(0, patch_centre_z - crop_radius[0]), min(shape[0], patch_centre_z + crop_radius[0]))
+        slice_x = slice(max(0, patch_centre_x - crop_radius[1]), min(shape[1], patch_centre_x + crop_radius[1]))
+        slice_y = slice(max(0, patch_centre_y - crop_radius[2]), min(shape[2], patch_centre_y + crop_radius[2]))
         data_patch = image[slice_z, slice_x, slice_y]
         seg_patch = label[slice_z, slice_x, slice_y]
 
-        contained_class_id = [class_id]
-        num_pixel_thresh = 0.1 * np.product(patch_size)
-        for cid in range(0, self.num_class):
-            if np.sum(seg_patch == cid) > num_pixel_thresh:
-                contained_class_id.append(cid)
+        # pad the patch if need
+        data_patch = np.pad(data_patch,
+                            ((-min(0, patch_centre_z - crop_radius[0]), max(patch_centre_z + crop_radius[0] - shape[0], 0)),
+                             (-min(0, patch_centre_x - crop_radius[1]), max(patch_centre_x + crop_radius[1] - shape[1], 0)),
+                             (-min(0, patch_centre_y - crop_radius[2]), max(patch_centre_y + crop_radius[2] - shape[2], 0))),
+                            mode=data_pad_mode, constant_values=data_pad_val)
+        seg_patch = np.pad(seg_patch,
+                            ((-min(0, patch_centre_z - crop_radius[0]), max(patch_centre_z + crop_radius[0] - shape[0], 0)),
+                             (-min(0, patch_centre_x - crop_radius[1]), max(patch_centre_x + crop_radius[1] - shape[1], 0)),
+                             (-min(0, patch_centre_y - crop_radius[2]), max(patch_centre_y + crop_radius[2] - shape[2], 0))),
+                            mode='constant', constant_values=seg_pad_val)
 
-        return data_patch, seg_patch, contained_class_id
+        # contained_class_id = [class_id]
+        # num_pixel_thresh = 0.1 * np.product(patch_size)
+        # for cid in range(0, self.num_class):
+        #     if np.sum(seg_patch == cid) > num_pixel_thresh:
+        #         contained_class_id.append(cid)
+
+        return data_patch, seg_patch
 
 
 def get_train_transform():
@@ -152,12 +161,12 @@ def get_train_transform():
             patch_size, patch_center_dist_from_border=None,
             do_elastic_deform=False, deformation_scale=(0.25, 0.5),
             do_rotation=True,
-            angle_x=(- 15 / 360. * 2 * np.pi, 15 / 360. * 2 * np.pi),
-            angle_y=(- 15 / 360. * 2 * np.pi, 15 / 360. * 2 * np.pi),
-            angle_z=(- 15 / 360. * 2 * np.pi, 15 / 360. * 2 * np.pi),
-            do_scale=True, scale=(0.85, 1.25),
-            border_mode_data='constant', border_cval_data=0,
-            border_mode_seg='constant', border_cval_seg=-1,
+            angle_x=(-rotation_x, rotation_x),
+            angle_y=(-rotation_y, rotation_y),
+            angle_z=(-rotation_z, rotation_z),
+            do_scale=True, scale=range_scale,
+            border_mode_data=data_pad_mode, border_cval_data=data_pad_val,
+            border_mode_seg='constant', border_cval_seg=seg_pad_val,
             order_seg=1, order_data=3,
             random_crop=False,
             p_el_per_sample=0, p_rot_per_sample=0.2, p_scale_per_sample=0.2
@@ -191,22 +200,22 @@ def get_train_transform():
     return tr_transforms
 
 
-def get_data_loader(class_weights, num_processes):
-    dl = MyDataloader(class_weights, num_processes)
+def get_data_loader(augmenter_processes=augmenter_processes, dataloader_threads=dataloader_threads, class_weights=None):
+    dl = MyDataloader(class_weights, dataloader_threads)
     trans = get_train_transform()
 
-    return MultiThreadedAugmenter(dl, trans, num_processes, num_cached_per_queue=1)
+    return MultiThreadedAugmenter(dl, trans, augmenter_processes, num_cached_per_queue=1)
 
 
 if __name__ == "__main__":
-    ml = get_data_loader(class_weight, 3)
+    ml = get_data_loader()
 
     batches = []
     dataset_info = json.load(open(dataset_info_file, 'r'))
     save_id = 0
     median_spacing = dataset_info['median_spacing']
     for i, batch in enumerate(ml):
-        print(i, batch['data'].shape, batch['seg'].shape, batch['image_names'], batch['batch_class_ids'])
+        print(i, batch['data'].shape, batch['seg'].shape, batch['image_names'])
         bs = batch['data'].shape[0]
         batches.append(batch['seg'])
 

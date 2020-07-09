@@ -14,14 +14,14 @@ from tensorboardX import SummaryWriter
 setup_seed(2018)
 
 
-def calc_batch_weights(image_names):
-    batch_weights = []
-    for img_name in image_names:
-        if int(img_name[5:7]) > 60:
-            batch_weights.append(batch_low_confidence_weight)
-        else:
-            batch_weights.append(1.0)
-    return batch_weights
+# def calc_batch_weights(image_names):
+#     batch_weights = []
+#     for img_name in image_names:
+#         if int(img_name[5:7]) > 60:
+#             batch_weights.append(batch_low_confidence_weight)
+#         else:
+#             batch_weights.append(1.0)
+#     return batch_weights
 
 
 def lr_delay(initial_lr, epoch):
@@ -45,6 +45,12 @@ if __name__ == "__main__":
     _, _, val_samples_info, val_samples_name = split_train_val()
     print("samples for validation: ", val_samples_name)
 
+    # 数据
+    batch_loader = get_data_loader()
+
+    # 损失函数
+    loss_func = DC_and_CE_loss(class_weight=None)
+
     # 训练
     writer = SummaryWriter()
     for epoch in range(1, Epoch+1):
@@ -57,18 +63,12 @@ if __name__ == "__main__":
         net.train()
         opt.zero_grad()
 
-        # 损失函数
-        loss_func = DC_and_CE_loss(class_weight, weight_ce=0)
-
-        # 数据
-        batch_loader = get_data_loader(class_weight, data_loader_processes)
-
         for step, batch in enumerate(batch_loader):
             data = batch['data']
             data = torch.FloatTensor(data).cuda()
             target = batch['seg']
-            batch_class_ids = batch["batch_class_ids"]
-            batch_weights = calc_batch_weights(batch['image_names'])
+            # batch_class_ids = batch["batch_class_ids"]
+            # batch_weights = calc_batch_weights(batch['image_names'])
 
             # forward + backward + (after grad_accum_steps)optimize and clear grad
             outputs = net(data)
@@ -89,7 +89,7 @@ if __name__ == "__main__":
                 opt.step()  # update parameters of net
                 opt.zero_grad()  # reset gradient
 
-            s = 'epoch:{}, step:{}, dc loss:{:.3f}, ce loss:{:.3f}, contained class:'.format(epoch, step, dc_loss.item(), ce_loss.item()) + str(batch_class_ids)
+            s = 'epoch:{}, step:{}, dc loss:{:.3f}, ce loss:{:.3f}'.format(epoch, step, dc_loss.item(), ce_loss.item())
             os.system('echo %s' % s)
 
         mean_loss = np.mean(mean_loss)
@@ -121,7 +121,7 @@ if __name__ == "__main__":
         writer.add_scalar("valset mean dice", val_mean_dice, epoch)
 
         # update organs weight according to dices
-        class_weight = 1.0 - np.array(val_cls_mean_dice)
+        # class_weight = 1.0 - np.array(val_cls_mean_dice)
         os.system('echo %s' % "---------------------------------------------\n")
 
         # 保存模型参数

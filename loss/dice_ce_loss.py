@@ -5,12 +5,13 @@ from skimage.transform import resize
 from loss.ce_loss import CELoss
 from loss.dice_loss import DiceLoss
 import sys
+
 sys.path.append("..")
 from utils import *
 
 
 class DC_and_CE_loss(nn.Module):
-    def __init__(self, class_weight, weight_ce=1, weight_dice=1):
+    def __init__(self, class_weight=None, weight_ce=1, weight_dice=1):
         """
         CAREFUL. Weights for CE and Dice do not need to sum to one. You can set whatever you want.
         """
@@ -18,6 +19,8 @@ class DC_and_CE_loss(nn.Module):
         self.weight_dice = weight_dice
         self.weight_ce = weight_ce
 
+        if class_weight is None:
+            class_weight = [1] * (num_organ + 1)
         self.ce = CELoss(class_weight)
         self.dc = DiceLoss(class_weight)
 

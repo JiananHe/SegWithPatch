@@ -4,13 +4,15 @@ import torch
 import numpy as np
 import csv
 import json
-from utils import organs_properties, calc_weight_matrix, post_process
+from utils import organs_properties, calc_weight_matrix
 from models.td_unet import get_net
 # from models.td_unet_cnn import get_net
 # from models.dense_vnet import get_net
 import scipy.ndimage as ndimage
 from utils import *
 
+
+patch_weight_matrix = calc_weight_matrix(patch_size)
 
 def patch_predict(net, patch):
     """
@@ -60,7 +62,7 @@ def volume_predict(net, vol_array):
                         vol_predict[:,
                         patch_border[i][0]:patch_border[i][1],
                         patch_border[i][2]:patch_border[i][3],
-                        patch_border[i][4]:patch_border[i][5]] += (prediction[i] * weight_matrix)
+                        patch_border[i][4]:patch_border[i][5]] += (prediction[i] * patch_weight_matrix)
                     sample_count = 0
 
     vol_predict = np.argmax(vol_predict, axis=0).astype(np.uint8)
@@ -142,11 +144,7 @@ def save_seg(predict_array, predict_spacing, ct_name, raw_spacing, shape_before_
         pred_vol.SetDirection(kwargs["vol_direction"])
     if kwargs["vol_origin"]:
         pred_vol.SetOrigin(kwargs["vol_origin"])
-<<<<<<< HEAD
 
-=======
-        
->>>>>>> a0ec928e16e44b1681d49301edb2adbfd5659204
     saved_name = ct_name if len(ct_name) > 6 and ct_name[-7:] == '.nii.gz' else ct_name + '.nii.gz'
     sitk.WriteImage(pred_vol, os.path.join('./prediction', saved_name))
 
@@ -194,11 +192,7 @@ def dataset_validation(net, val_samples_info, cal_acc=True, show_sample_dice=Fal
 if __name__ == "__main__":
     net = get_net(1)
     net = torch.nn.DataParallel(net).cuda()
-<<<<<<< HEAD
     net.load_state_dict(torch.load("./module/td_unet66-0.151-0.357.pth"))
-=======
-    net.load_state_dict(torch.load("td_unet59-0.225-0.580.pth"))
->>>>>>> a0ec928e16e44b1681d49301edb2adbfd5659204
     net.eval()
 
     _, _, val_samples_info, val_samples_name = split_train_val()
