@@ -160,12 +160,11 @@ def dataset_validation(net, val_samples_info, crop_roi=False, cal_acc=True, show
         name = val_info[0].split("/")[-1][:-4]
 
         if crop_roi:
+            seg = np.load(val_info[1])
             z_min = np.min(np.where(seg != 0)[0])
             z_max = np.max(np.where(seg != 0)[0]) + 1
-
             x_min = np.min(np.where(seg != 0)[1])
             x_max = np.max(np.where(seg != 0)[1]) + 1
-
             y_min = np.min(np.where(seg != 0)[2])
             y_max = np.max(np.where(seg != 0)[2]) + 1
 

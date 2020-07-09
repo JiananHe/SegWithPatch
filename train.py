@@ -111,7 +111,7 @@ if __name__ == "__main__":
         # valset accuracy
         os.system('echo %s' % "--------evaluation on validation set----------")
         val_eval_start = time()
-        val_cls_mean_dice = dataset_validation(net, val_samples_info, show_sample_dice=True)
+        val_cls_mean_dice = dataset_validation(net, val_samples_info, crop_roi=True, show_sample_dice=True)
         writer.add_scalars('valset orgs dice',
                            {name: val_cls_mean_dice[i] for i, name in enumerate(classes_name)}, epoch)
 

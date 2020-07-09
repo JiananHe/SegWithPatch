@@ -19,7 +19,7 @@ dataset_info_file = os.path.join(project_root_path, "info_files/trainset_info.js
 # number of patches in a batch = num_patches_volume * num_volumes_batch
 num_patches_volume = 1
 num_volumes_batch = 2
-val_batch_size = 6
+val_batch_size = 8
 
 # data argument
 rotation_x = 15 / 360. * 2 * np.pi
