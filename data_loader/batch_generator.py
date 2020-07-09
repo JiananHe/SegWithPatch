@@ -75,8 +75,8 @@ class MyDataloader(SlimDataLoaderBase):
             selected_ids = np.random.choice(range(len(self._data)), 1)[0]
             selected_samples = self._data[selected_ids]
 
-            image = np.load(selected_samples[0])
-            segmentation = np.load(selected_samples[1])
+            image = np.load(selected_samples[0]).astype(np.float)
+            segmentation = np.load(selected_samples[1]).astype(np.int)
             for j in range(num_patches_volume):
                 # select a patch in which the class with the highest weight is contained
                 # class_id = np.argmax(self.class_weight - current_weight) + 1
@@ -105,9 +105,9 @@ class MyDataloader(SlimDataLoaderBase):
         crop_size = self.generator_patch_size
         # select the centre of patch
         if not force_fg:
-            patch_centre_z = np.random.randint(0, shape[0])
-            patch_centre_x = np.random.randint(0, shape[1])
-            patch_centre_y = np.random.randint(0, shape[2])
+            patch_centre_z = np.random.randint(patch_size[0]//2, shape[0] - patch_size[0]//2)
+            patch_centre_x = np.random.randint(patch_size[1]//2, shape[1] - patch_size[1]//2)
+            patch_centre_y = np.random.randint(patch_size[2]//2, shape[2] - patch_size[2]//2)
         else:
             # select one class contained in current volume randomly and
             # then pick one voxel belongs to the selected class randomly

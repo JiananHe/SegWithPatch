@@ -112,9 +112,8 @@ class DiceLoss(nn.Module):
         # return loss.mean()
 
         axes = tuple(range(2, len(predict.size())))
-        class_voxel_weight = 1 / (torch.sum(target, axes).type(torch.float32) + self.smooth)**2  # (N, C)
-        intersection = class_voxel_weight * torch.sum(predict * y_onehot, dim=axes)
-        union = class_voxel_weight * (torch.sum(predict, dim=axes) + torch.sum(y_onehot, dim=axes))
+        intersection = torch.sum(predict * y_onehot, dim=axes)  # (N, C)
+        union = (torch.sum(predict, dim=axes) + torch.sum(y_onehot, dim=axes))
 
         loss = 1 - 2 * (torch.sum(intersection, dim=1) + self.smooth) / (torch.sum(union, dim=1) + self.smooth)  # (N,)
         return loss.mean()

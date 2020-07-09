@@ -28,7 +28,7 @@ rotation_z = 5 / 360. * 2 * np.pi
 range_scale = (0.85, 1.25)
 data_pad_mode = 'constant'
 data_pad_val = 0
-seg_pad_val = -1
+seg_pad_val = 0
 
 padding_size = np.array([20, 60, 60])
 patch_size = np.array([48, 192, 192])
