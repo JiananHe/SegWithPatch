@@ -149,14 +149,29 @@ def save_seg(predict_array, predict_spacing, ct_name, raw_spacing, shape_before_
     sitk.WriteImage(pred_vol, os.path.join('./prediction', saved_name))
 
 
-def dataset_validation(net, val_samples_info, cal_acc=True, show_sample_dice=False, save=False, postprocess=False):
+def dataset_validation(net, val_samples_info, crop_roi=False, cal_acc=True, show_sample_dice=False, save=False, postprocess=False):
     sample_dices = []
 
     if save:
         median_spacing = json.load(open(dataset_info_file, 'r'))['median_spacing']
     for val_info in val_samples_info:
         img = np.load(val_info[0])
+        seg = None
         name = val_info[0].split("/")[-1][:-4]
+
+        if crop_roi:
+            z_min = np.min(np.where(seg != 0)[0])
+            z_max = np.max(np.where(seg != 0)[0]) + 1
+
+            x_min = np.min(np.where(seg != 0)[1])
+            x_max = np.max(np.where(seg != 0)[1]) + 1
+
+            y_min = np.min(np.where(seg != 0)[2])
+            y_max = np.max(np.where(seg != 0)[2]) + 1
+
+            img = img[z_min:z_max, x_min:x_max, y_min:y_max]
+            seg = seg[z_min:z_max, x_min:x_max, y_min:y_max]
+
         predict = volume_predict(net, img)
         assert predict.shape == img.shape
 
@@ -164,7 +179,8 @@ def dataset_validation(net, val_samples_info, cal_acc=True, show_sample_dice=Fal
             predict = post_process(predict)
 
         if cal_acc:
-            seg = np.load(val_info[1])
+            if seg is None:
+                seg = np.load(val_info[1])
             dices = volume_accuarcy(predict, seg)
             sample_dices.append(dices)
 

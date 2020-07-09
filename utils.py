@@ -19,7 +19,7 @@ dataset_info_file = os.path.join(project_root_path, "info_files/trainset_info.js
 # number of patches in a batch = num_patches_volume * num_volumes_batch
 num_patches_volume = 1
 num_volumes_batch = 2
-val_batch_size = 4
+val_batch_size = 6
 
 # data argument
 rotation_x = 15 / 360. * 2 * np.pi
@@ -40,7 +40,7 @@ module_dir = './module/td_unet6-0.230-0.539.pth'
 os.environ['CUDA_VISIBLE_DEVICES'] = '2,3'
 torch.backends.cudnn.benchmark = True
 Epoch = 600
-iteration_every_epoch = 250
+iteration_every_epoch = 25
 # 梯度累计，即每grad_accum_steps次iteration更新一次网络参数
 grad_accum_steps = 2
 inital_learning_rate = 1e-3
@@ -212,7 +212,7 @@ def image_resize(old_image, new_shape, order, is_anisotropic):
 
 # 根据training_samples_info.csv划分训练集与验证集
 def split_train_val():
-    val_amount = 6  # 验证集case数量
+    val_amount = 5  # 验证集case数量
     csv_reader = csv.reader(open(samples_info_file, 'r'))
     all_samples_info = [row for row in csv_reader][1:]
     train_samples_info = []
@@ -226,7 +226,7 @@ def split_train_val():
             # train_samples_info.append(info)
             # train_samples_name.append(name)
         else:
-            if len(val_samples_info) < 6:
+            if len(val_samples_info) < val_amount:
                 val_samples_info.append(info)
                 val_samples_name.append(name)
             else:

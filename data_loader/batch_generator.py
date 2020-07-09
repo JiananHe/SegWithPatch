@@ -16,7 +16,7 @@ from utils import *
 class MyDataloader(SlimDataLoaderBase):
     # current_counts = [0] * (organs_properties["num_organ"] + 1)
 
-    def __init__(self, class_weight=None, num_threads_in_mt=None):
+    def __init__(self, num_threads_in_mt, class_weight=None):
         super(MyDataloader, self).__init__(None, num_patches_volume * num_volumes_batch, num_threads_in_mt)
         # assert 0 <= folder <= 4, "only support 5-folder cross validation"
 
@@ -28,8 +28,8 @@ class MyDataloader(SlimDataLoaderBase):
         # self.class_weight = class_weight
         self.num_class = num_organ + 1
         self.generator_patch_size = get_generator_patch_size(patch_size, rotation_x, rotation_y, rotation_z, range_scale)
-        # self.current_position = 0
-        # self.was_initialized = False
+        self.current_position = 0
+        self.was_initialized = False
 
         # set the range of weights for sampling, ignore background
         # self.organ_weight = class_weight[1:]
@@ -38,12 +38,12 @@ class MyDataloader(SlimDataLoaderBase):
         # for i in range(1, len(self.organ_weight)+1):
         #     self.organ_weight_range[i] = self.organ_weight_range[i-1]+self.organ_weight[i-1]
 
-    # def reset(self):
-    #     if self.was_initialized:
-    #         print("total counts for every class: ", MyDataloader.current_counts)
-    #     self.current_position = self.thread_id
-    #     self.was_initialized = True
-    #
+    def reset(self):
+        # if self.was_initialized:
+        #     print("total counts for every class: ", MyDataloader.current_counts)
+        self.current_position = self.thread_id
+        self.was_initialized = True
+
     # def calc_sample_class_id(self):
     #     current_random = np.random.rand()
     #     for r in range(len(self.organ_weight)):
@@ -60,12 +60,12 @@ class MyDataloader(SlimDataLoaderBase):
         # return np.random.choice(under_sampled_id)
 
     def generate_train_batch(self):
-        # if not self.was_initialized:
-        #     self.reset()
-        # self.current_position = self.current_position + self.number_of_threads_in_multithreaded
-        # if self.current_position > iteration_every_epoch + (self.number_of_threads_in_multithreaded - 1):
-        #     self.reset()
-        #     raise StopIteration
+        if not self.was_initialized:
+            self.reset()
+        self.current_position += self.number_of_threads_in_multithreaded
+        if self.current_position > iteration_every_epoch + (self.number_of_threads_in_multithreaded - 1):
+            self.reset()
+            raise StopIteration
 
         data_patches = []
         seg_patches = []
@@ -201,7 +201,7 @@ def get_train_transform():
 
 
 def get_data_loader(augmenter_processes=augmenter_processes, dataloader_threads=dataloader_threads, class_weights=None):
-    dl = MyDataloader(class_weights, dataloader_threads)
+    dl = MyDataloader(dataloader_threads, class_weights)
     trans = get_train_transform()
 
     return MultiThreadedAugmenter(dl, trans, augmenter_processes, num_cached_per_queue=1)
