@@ -75,6 +75,12 @@ class DiceLoss(nn.Module):
     def __init__(self, class_weight):
         super().__init__()
         self.smooth = 1e-6
+        
+        class_weight = np.round(class_weight, 2)
+        class_weight /= np.min(class_weight[class_weight != 0])
+        class_weight[class_weight == 0] = 1
+        self.class_weight = torch.tensor(class_weight).float().cuda()
+        print("class weight in dice loss: ", class_weight)
 
     def forward(self, predict, target, batch_weight):
         """
@@ -112,8 +118,8 @@ class DiceLoss(nn.Module):
         # return loss.mean()
 
         axes = tuple(range(2, len(predict.size())))
-        intersection = torch.sum(predict * y_onehot, dim=axes)  # (N, C)
-        union = (torch.sum(predict, dim=axes) + torch.sum(y_onehot, dim=axes))
+        intersection = self.class_weight * torch.sum(predict * y_onehot, dim=axes)  # (N, C)
+        union = self.class_weight * (torch.sum(predict, dim=axes) + torch.sum(y_onehot, dim=axes))
 
         loss = 1 - 2 * (torch.sum(intersection, dim=1) + self.smooth) / (torch.sum(union, dim=1) + self.smooth)  # (N,)
         return loss.mean()

@@ -45,9 +45,6 @@ if __name__ == "__main__":
     _, _, val_samples_info, val_samples_name = split_train_val()
     print("samples for validation: ", val_samples_name)
 
-    # 损失函数
-    loss_func = DC_and_CE_loss(class_weight=None)
-
     # 训练
     writer = SummaryWriter()
     class_weight = init_class_weight
@@ -60,6 +57,9 @@ if __name__ == "__main__":
         # switch models to training mode, clear gradient accumulators
         net.train()
         opt.zero_grad()
+          
+        # 损失函数
+        loss_func = DC_and_CE_loss(class_weight)
         
         # 数据
         if epoch <= 3 and not resume_training:  # 前几个epoch不根据class weight进行采样
