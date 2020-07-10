@@ -25,7 +25,7 @@ class MyDataloader(SlimDataLoaderBase):
         print("samples for training: ", train_samples_name)
         self._data = train_samples_info
 
-        # self.class_weight = class_weight
+        self.class_weight = class_weight
         self.num_class = num_organ + 1
         self.generator_patch_size = get_generator_patch_size(patch_size, rotation_x, rotation_y, rotation_z, range_scale)
         self.current_position = 0
@@ -112,7 +112,14 @@ class MyDataloader(SlimDataLoaderBase):
             # select one class contained in current volume randomly and
             # then pick one voxel belongs to the selected class randomly
             contained_class = np.unique(label[label != 0])
-            selected_class = np.random.choice(contained_class)
+            if self.class_weight is None:
+                selected_class = np.random.choice(contained_class)
+            else:
+                # select one of the top K classes randomly
+                wgt_thresh = np.sort(self.class_weight)[int(0.5 * len(self.class_weight))]
+                k_high_class = np.argwhere(self.class_weight >= wgt_thresh).squeeze()
+                selected_class = np.random.choice(np.intersect1d(contained_class, k_high_class))
+
             voxels_of_class = np.argwhere(label == selected_class)
             selected_voxel = voxels_of_class[np.random.choice(len(voxels_of_class))]
             patch_centre_z, patch_centre_x, patch_centre_y = selected_voxel
@@ -200,8 +207,8 @@ def get_train_transform():
     return tr_transforms
 
 
-def get_data_loader(augmenter_processes=augmenter_processes, dataloader_threads=dataloader_threads, class_weights=None):
-    dl = MyDataloader(dataloader_threads, class_weights)
+def get_data_loader(augmenter_processes=augmenter_processes, dataloader_threads=dataloader_threads, class_weight=None):
+    dl = MyDataloader(dataloader_threads, class_weight)
     trans = get_train_transform()
 
     return MultiThreadedAugmenter(dl, trans, augmenter_processes, num_cached_per_queue=1)

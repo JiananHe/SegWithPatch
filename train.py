@@ -45,14 +45,12 @@ if __name__ == "__main__":
     _, _, val_samples_info, val_samples_name = split_train_val()
     print("samples for validation: ", val_samples_name)
 
-    # 数据
-    batch_loader = get_data_loader()
-
     # 损失函数
     loss_func = DC_and_CE_loss(class_weight=None)
 
     # 训练
     writer = SummaryWriter()
+    class_weight = init_class_weight
     for epoch in range(1, Epoch+1):
         dc_mean_loss = []
         ce_mean_loss = []
@@ -62,6 +60,12 @@ if __name__ == "__main__":
         # switch models to training mode, clear gradient accumulators
         net.train()
         opt.zero_grad()
+        
+        # 数据
+        if epoch <= 3 and not resume_training:  # 前几个epoch不根据class weight进行采样
+            batch_loader = get_data_loader(class_weight=None)
+        else:
+            batch_loader = get_data_loader(class_weight=class_weight)
 
         for step, batch in enumerate(batch_loader):
             data = batch['data']
@@ -122,7 +126,7 @@ if __name__ == "__main__":
             writer.add_scalar("valset mean dice", val_mean_dice, epoch)
 
             # update organs weight according to dices
-            # class_weight = 1.0 - np.array(val_cls_mean_dice)
+            class_weight = 1.0 - np.array(val_cls_mean_dice)
             os.system('echo %s' % "---------------------------------------------\n")
 
         # 保存模型参数

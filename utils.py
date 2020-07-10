@@ -63,7 +63,7 @@ organs_name = organs_properties['organs_name']
 num_organ = organs_properties['num_organ']
 organs_size = organs_properties['organs_size']
 classes_name = ["bg"] + organs_name
-class_weight = np.array([1] + organs_properties["organs_weight"])
+init_class_weight = np.array([1] + organs_properties["organs_weight"])
 # class_weight = class_weight / np.max(class_weight)
 
 network_configure = {'kernel_sizes': [[1, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3]],
