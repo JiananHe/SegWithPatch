@@ -5,7 +5,7 @@ Code and Supplementary for paper "Online Hard Patch Mining Using Shape Models an
 - 47 images come from the [MICCAI Multi-Atlas Labeling Beyond the Cranial Vault challenge (BCV)](https://www.synapse.org/Synapse:syn3193805/wiki/89480).
 - 43 images come from the [Cancer Image Archive Pancreas-CT dataset (TCIA)](https://wiki.cancerimagingarchive.net/display/Public/Pancreas-CT).
 - 20 images come from the [Visceral Anatomy3](http://www.visceral.eu/benchmarks/anatomy3-open/).
-- 25 images come from hospital. 
+- 25 images come from local hospital. 
 
 **2. [Head and neck dataset (HaN)](https://edoc.unibas.ch/59211/1/20180122140606_5a65e1be0d4fc.pdf)**
 
