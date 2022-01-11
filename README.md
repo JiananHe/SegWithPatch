@@ -1,4 +1,4 @@
-Code and Supplementary for paper "Online Hard Patch Mining Using Shape Models and Bandit Algorithm for Multi-Organ Segmentation"
+Supplementary for paper "Online Hard Patch Mining Using Shape Models and Bandit Algorithm for Multi-Organ Segmentation"
 ## Dataset
 ### Sources:
 **1. Abdominal dataset:**
